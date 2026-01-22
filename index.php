@@ -86,7 +86,7 @@ if (!isset($_SESSION['logged_in'])) {
     <div class="logo-icon"><i class="fa-solid fa-bolt-lightning"></i></div>
     <h2>HEYOz LOGIN</h2>
     <?php if($error) echo "<div class='err'>$error</div>"; ?>
-    <form method="POST"><input type="text" name="key" placeholder="Enter License Key" required><button type="submit" name="login_key">ACTIVATE SYSTEM</button></form>
+    <form method="POST"><input type="text" name="key" placeholder="Enter License Key" required><button type="submit" name="login_key">𝗔𝘂𝘁𝗵𝗼𝗿𝗶𝘇𝗲 𝗔𝗰𝗰𝗲𝘀𝘀</button></form>
     </div></body></html>
     <?php exit;
 }
@@ -226,7 +226,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['login_key'])) {
 
     <select id="gate" class="gate-select">
         <option value="gate1">🛡️ GATE 1: STRIPE $1.00 (Charge)</option>
-        <option value="gate2">🛡️ GATE 2: STRIPE $0.50 (Auth)</option>
+        <option value="gate2">🛡️ GATE 2: STRIPE $0.50 (Charge)</option>
     </select>
 
     <div class="input-group">
@@ -238,7 +238,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['login_key'])) {
     </div>
 
     <div class="controls">
-        <button id="btn" onclick="start()"><i class="fa-solid fa-play"></i> START SCANNING</button>
+        <button id="btn" onclick="start()"><i class="fa-solid fa-play"></i> START CHECKING</button>
         <button id="stopBtn" onclick="stop()"><i class="fa-solid fa-stop"></i> STOP</button>
     </div>
 
@@ -290,9 +290,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['login_key'])) {
     function stop() {
         isRunning = false;
         document.getElementById('stopBtn').style.display = 'none';
-        document.getElementById('btn').innerHTML = '<i class="fa-solid fa-play"></i> RESUME SCANNING';
+        document.getElementById('btn').innerHTML = '<i class="fa-solid fa-play"></i> RESUME CHECKING ';
         document.getElementById('btn').disabled = false;
-        document.getElementById('status-display').innerText = "SCANNING STOPPED.";
+        document.getElementById('status-display').innerText = "CHECKING STOPPED.";
     }
 
     async function start() {
@@ -355,8 +355,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['login_key'])) {
         }
         
         if (lines.length === 0) {
-            statusBox.innerHTML = '<i class="fa-solid fa-circle-check"></i> SCANNING FINISHED.';
-            btn.innerHTML = '<i class="fa-solid fa-play"></i> START SCANNING';
+            statusBox.innerHTML = '<i class="fa-solid fa-circle-check"></i> CHECKING FINISHED.';
+            btn.innerHTML = '<i class="fa-solid fa-play"></i> START CHECKING ';
             btn.disabled = false;
             stopBtn.style.display = 'none';
         } else { stop(); }

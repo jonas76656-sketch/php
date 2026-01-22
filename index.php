@@ -15,14 +15,21 @@ function save_keys($keys) {
     file_put_contents($key_file, json_encode($keys, JSON_PRETTY_PRINT));
 }
 
-// Logout
+// Logout လုပ်လျှင် Session Lock ကိုပါ ဖြုတ်ပေးရန်
 if (isset($_GET['logout'])) {
+    $all_keys = get_keys();
+    $ckey = $_SESSION['user_key'];
+    if (isset($all_keys[$ckey])) {
+        // အသုံးပြုသူထွက်သွားလျှင် Lock ကို ပြန်ဖွင့်ပေးသည်
+        $all_keys[$ckey]['session_id'] = "";
+        save_keys($all_keys);
+    }
     session_destroy();
     header("Location: " . strtok($_SERVER["REQUEST_URI"], '?'));
     exit;
 }
 
-// --- Login Logic ---
+// --- Login Logic with Single User Lock ---
 if (isset($_POST['login_key'])) {
     $input_key = trim($_POST['key']);
     $all_keys = get_keys();
@@ -31,19 +38,32 @@ if (isset($_POST['login_key'])) {
             $error = "Key Expired!";
         } elseif ($all_keys[$input_key]['credits'] < 5) {
             $error = "Insufficient Credits (Min 5)!";
+        } 
+        // --- Single User Lock စစ်ဆေးခြင်း ---
+        elseif (!empty($all_keys[$input_key]['session_id']) && $all_keys[$input_key]['session_id'] !== session_id()) {
+            $error = "Key is already used by another device!";
         } else {
+            // Login အောင်မြင်လျှင် Session ID ကို Key နှင့်အတူ သိမ်းလိုက်သည်
+            $all_keys[$input_key]['session_id'] = session_id();
+            save_keys($all_keys);
+            
             $_SESSION['user_key'] = $input_key;
             $_SESSION['logged_in'] = true;
         }
     } else { $error = "Invalid License Key!"; }
 }
 
-// --- Auto-Check Validity (Key Expired or Low Credits) ---
+// --- Auto-Check Validity (Key Expired or Low Credits or Lock Check) ---
 if (isset($_SESSION['logged_in'])) {
     $ckey = $_SESSION['user_key'];
     $all_keys = get_keys();
-    // Key မရှိတော့ခြင်း သို့မဟုတ် သက်တမ်းကုန်ခြင်း သို့မဟုတ် Credits ၅ ခုအောက်လျော့နည်းခြင်းရှိမရှိ စစ်ဆေးသည်
-    if (!isset($all_keys[$ckey]) || date('Y-m-d') > $all_keys[$ckey]['expiry'] || $all_keys[$ckey]['credits'] < 5) {
+    
+    // Key မရှိတော့ခြင်း၊ သက်တမ်းကုန်ခြင်း၊ Credits နည်းခြင်း သို့မဟုတ် တခြားစက်မှ ဝင်လာခြင်းရှိမရှိ စစ်ဆေးသည်
+    if (!isset($all_keys[$ckey]) || 
+        date('Y-m-d') > $all_keys[$ckey]['expiry'] || 
+        $all_keys[$ckey]['credits'] < 5 ||
+        $all_keys[$ckey]['session_id'] !== session_id()) {
+        
         session_destroy();
         header("Location: " . strtok($_SERVER["REQUEST_URI"], '?'));
         exit;
@@ -75,11 +95,11 @@ if (!isset($_SESSION['logged_in'])) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['login_key'])) {
     header("Content-Type: application/json");
     
-    // Check Credits again before processing
+    // Check Credits and Lock again before processing
     $ckey = $_SESSION['user_key'];
     $all_keys = get_keys();
-    if ($all_keys[$ckey]['credits'] < 5) {
-        echo json_encode(["status" => "LOGOUT", "msg" => "Low Credit! Please Recharge."]); exit;
+    if ($all_keys[$ckey]['credits'] < 5 || $all_keys[$ckey]['session_id'] !== session_id()) {
+        echo json_encode(["status" => "LOGOUT", "msg" => "Low Credit or Account Locked!"]); exit;
     }
 
     $data = json_decode(file_get_contents('php://input'), true);
@@ -224,8 +244,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['login_key'])) {
         .wrapper { width: 100%; max-width: 900px; margin: auto; }
         .header-flex { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
         h1 { font-size: 1.5rem; text-align: center; color: #58a6ff; margin: 0; flex-grow: 1; }
-        /* Logout အစား Credits ကိုပြပေးသော CSS */
-        .credit-display { color: #58a6ff; font-weight: bold; border: 1px solid #f85149; padding: 5px 10px; border-radius: 5px; font-size: 14px; background: #21262d; border-color: #30363d; }
+        .credit-display { color: #58a6ff; font-weight: bold; border: 1px solid #30363d; padding: 5px 10px; border-radius: 5px; font-size: 14px; background: #21262d; }
         #status-display { background: #010409; border: 1px solid #58a6ff; padding: 12px; border-radius: 8px; text-align: center; margin-bottom: 15px; font-family: monospace; color: #58a6ff; font-weight: bold; min-height: 45px; }
         .gate-select { width: 100%; background: var(--card); color: #58a6ff; border: 1px solid var(--border); padding: 10px; border-radius: 8px; margin-bottom: 15px; font-weight: bold; outline: none; cursor: pointer; }
         .input-group { position: relative; width: 100%; }
@@ -358,9 +377,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['login_key'])) {
                 const endTime = performance.now();
                 const timeTaken = ((endTime - startTime) / 1000).toFixed(2);
 
-                // Credits ကုန်လျှင် သို့မဟုတ် Key Expire ဖြစ်လျှင် Login Page သို့ ပြန်ပို့ခြင်း
                 if (data.status === "LOGOUT") {
-                    alert("Credits ကုန်သွားပါပြီ သို့မဟုတ် Key သက်တမ်းကုန်သွားပါပြီ။");
+                    alert("Account Locked or Credits Finished!");
                     window.location.reload();
                     return;
                 }
@@ -378,9 +396,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['login_key'])) {
                     target.insertBefore(item, target.firstChild);
                 }
                 
-                // Credit ကို Real-time update လုပ်ရန်
                 if(data.status === "LIVE") {
-                   location.reload(); // Credit update ဖြစ်ရန် page ကို reload လုပ်ခြင်း (သို့မဟုတ်) status bar မှာပြောင်းလဲရန် logic ထပ်ထည့်နိုင်သည်
+                   location.reload(); 
                 }
 
                 lines.shift();

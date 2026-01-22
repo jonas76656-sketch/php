@@ -20,6 +20,7 @@ if (isset($_GET['logout'])) {
     $all_keys = get_keys();
     $ckey = $_SESSION['user_key'];
     if (isset($all_keys[$ckey])) {
+        // အသုံးပြုသူထွက်သွားလျှင် Lock ကို ပြန်ဖွင့်ပေးသည်
         $all_keys[$ckey]['session_id'] = "";
         save_keys($all_keys);
     }
@@ -38,22 +39,31 @@ if (isset($_POST['login_key'])) {
         } elseif ($all_keys[$input_key]['credits'] < 5) {
             $error = "Insufficient Credits (Min 5)!";
         } 
+        // --- Single User Lock စစ်ဆေးခြင်း ---
         elseif (!empty($all_keys[$input_key]['session_id']) && $all_keys[$input_key]['session_id'] !== session_id()) {
             $error = "Key is already used by another device!";
         } else {
+            // Login အောင်မြင်လျှင် Session ID ကို Key နှင့်အတူ သိမ်းလိုက်သည်
             $all_keys[$input_key]['session_id'] = session_id();
             save_keys($all_keys);
+            
             $_SESSION['user_key'] = $input_key;
             $_SESSION['logged_in'] = true;
         }
     } else { $error = "Invalid License Key!"; }
 }
 
-// --- Auto-Check Validity ---
+// --- Auto-Check Validity (Key Expired or Low Credits or Lock Check) ---
 if (isset($_SESSION['logged_in'])) {
     $ckey = $_SESSION['user_key'];
     $all_keys = get_keys();
-    if (!isset($all_keys[$ckey]) || date('Y-m-d') > $all_keys[$ckey]['expiry'] || $all_keys[$ckey]['credits'] < 5 || $all_keys[$ckey]['session_id'] !== session_id()) {
+    
+    // Key မရှိတော့ခြင်း၊ သက်တမ်းကုန်ခြင်း၊ Credits နည်းခြင်း သို့မဟုတ် တခြားစက်မှ ဝင်လာခြင်းရှိမရှိ စစ်ဆေးသည်
+    if (!isset($all_keys[$ckey]) || 
+        date('Y-m-d') > $all_keys[$ckey]['expiry'] || 
+        $all_keys[$ckey]['credits'] < 5 ||
+        $all_keys[$ckey]['session_id'] !== session_id()) {
+        
         session_destroy();
         header("Location: " . strtok($_SERVER["REQUEST_URI"], '?'));
         exit;
@@ -69,28 +79,30 @@ if (!isset($_SESSION['logged_in'])) {
     <title>Login - HEYOz</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
-        body { margin: 0; padding: 0; background: #080a0f; font-family: 'Segoe UI', sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
-        .login-card { background: rgba(22, 27, 34, 0.8); backdrop-filter: blur(10px); padding: 40px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.1); width: 350px; text-align: center; box-shadow: 0 25px 50px rgba(0,0,0,0.5); }
+        body { margin: 0; padding: 0; background: #080a0f; font-family: 'Segoe UI', sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; overflow: hidden; }
+        .login-card { background: rgba(22, 27, 34, 0.8); backdrop-filter: blur(10px); padding: 40px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.1); width: 350px; text-align: center; box-shadow: 0 25px 50px rgba(0,0,0,0.5); position: relative; z-index: 2; }
         .logo-icon { font-size: 50px; color: #58a6ff; margin-bottom: 20px; text-shadow: 0 0 20px rgba(88, 166, 255, 0.5); }
         h2 { color: #fff; margin-bottom: 25px; font-weight: 600; letter-spacing: 1px; }
-        input { width: 100%; padding: 15px; margin-bottom: 20px; background: rgba(1, 4, 9, 0.5); border: 1px solid #30363d; color: #58a6ff; border-radius: 12px; box-sizing: border-box; text-align: center; font-size: 16px; outline: none; }
-        button { width: 100%; padding: 15px; background: linear-gradient(45deg, #238636, #2ea043); color: white; border: none; border-radius: 12px; cursor: pointer; font-weight: 600; font-size: 16px; box-shadow: 0 10px 20px rgba(35, 134, 54, 0.3); }
-        .err { color: #f85149; margin-bottom: 15px; font-size: 14px; font-weight: bold; }
+        input { width: 100%; padding: 15px; margin-bottom: 20px; background: rgba(1, 4, 9, 0.5); border: 1px solid #30363d; color: #58a6ff; border-radius: 12px; box-sizing: border-box; text-align: center; font-size: 16px; outline: none; transition: 0.3s; }
+        input:focus { border-color: #58a6ff; box-shadow: 0 0 15px rgba(88,166,255,0.1); }
+        button { width: 100%; padding: 15px; background: linear-gradient(45deg, #238636, #2ea043); color: white; border: none; border-radius: 12px; cursor: pointer; font-weight: 600; font-size: 16px; box-shadow: 0 10px 20px rgba(35, 134, 54, 0.3); transition: 0.3s; }
+        button:hover { transform: translateY(-2px); opacity: 0.9; }
+        .err { color: #f85149; margin-bottom: 15px; font-size: 14px; font-weight: bold; background: rgba(248, 81, 73, 0.1); padding: 8px; border-radius: 8px; }
     </style></head>
-    <body><div class="login-card"><div class="logo-icon"><i class="fa-solid fa-bolt"></i></div><h2>🔑 HEYOz LOGIN</h2>
+    <body><div class="login-card"><div class="logo-icon"><i class="fa-solid fa-bolt-lightning"></i></div><h2>🔑 HEYOz LOGIN</h2>
     <?php if($error) echo "<div class='err'>$error</div>"; ?>
-    <form method="POST"><input type="text" name="key" placeholder="ENTER YOUR KEY" required><button type="submit" name="login_key">ACTIVATE SYSTEM</button></form>
+    <form method="POST"><input type="text" name="key" placeholder="•••• •••• •••• ••••" required><button type="submit" name="login_key">ACTIVATE SYSTEM</button></form>
     </div></body></html>
     <?php exit;
 }
 
-// --- Server-Side Logic (POST handler) ---
+// --- Server-Side Logic ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['login_key'])) {
     header("Content-Type: application/json");
     $ckey = $_SESSION['user_key'];
     $all_keys = get_keys();
     if ($all_keys[$ckey]['credits'] < 5 || $all_keys[$ckey]['session_id'] !== session_id()) {
-        echo json_encode(["status" => "LOGOUT", "msg" => "Expired or Locked!"]); exit;
+        echo json_encode(["status" => "LOGOUT", "msg" => "Low Credit or Account Locked!"]); exit;
     }
     $data = json_decode(file_get_contents('php://input'), true);
     $ccx = $data['card'] ?? "";
@@ -110,10 +122,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['login_key'])) {
     curl_setopt($ch_bin, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch_bin, CURLOPT_TIMEOUT, 3);
     $bin_res = json_decode(curl_exec($ch_bin), true);
-    $brand = strtoupper($bin_res['scheme'] ?? 'UNK');
-    $bank = $bin_res['bank']['name'] ?? 'Unknown Bank';
-    $country = $bin_res['country']['emoji'] ?? '🏳️';
-    $bin_info = "[$brand - $bank $country]";
+    if ($bin_res && isset($bin_res['scheme'])) {
+        $brand = strtoupper($bin_res['scheme'] ?? 'UNK');
+        $bank = $bin_res['bank']['name'] ?? 'Unknown Bank';
+        $country = $bin_res['country']['emoji'] ?? '🏳️';
+        $bin_info = "[$brand - $bank $country]";
+    } else {
+        $f = substr($cc, 0, 1);
+        $fallback_brand = ($f == '4') ? "VISA" : (($f == '5') ? "MASTER" : "UNK");
+        $bin_info = "[$fallback_brand - BIN LIMIT]";
+    }
     $email = 'jhsha' . rand(100, 999) . '@gmail.com';
     $ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
     if ($gate == "gate1") {
@@ -170,41 +188,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['login_key'])) {
         body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; padding: 15px; margin: 0; display: flex; justify-content: center; }
         .wrapper { width: 100%; max-width: 900px; animation: fadeIn 0.8s ease; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        .header-flex { display: flex; justify-content: space-between; align-items: center; background: linear-gradient(90deg, #161b22, #0d1117); padding: 15px 20px; border-radius: 15px; border: 1px solid var(--border); margin-bottom: 20px; }
+        
+        .header-flex { display: flex; justify-content: space-between; align-items: center; background: linear-gradient(90deg, #161b22, #0d1117); padding: 15px 20px; border-radius: 15px; border: 1px solid var(--border); margin-bottom: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
         h1 { font-size: 1.4rem; color: var(--accent); margin: 0; text-transform: uppercase; letter-spacing: 1px; }
-        .credit-display { color: var(--accent); font-weight: bold; border: 1px solid rgba(88, 166, 255, 0.3); padding: 6px 15px; border-radius: 10px; font-size: 14px; background: rgba(88, 166, 255, 0.1); }
+        .credit-display { color: var(--accent); font-weight: bold; border: 1px solid rgba(88, 166, 255, 0.3); padding: 8px 18px; border-radius: 12px; font-size: 14px; background: rgba(88, 166, 255, 0.1); box-shadow: 0 0 15px rgba(88, 166, 255, 0.1); }
+        
         #status-display { background: #010409; border: 1px solid var(--accent); padding: 12px; border-radius: 12px; text-align: center; margin-bottom: 15px; font-family: monospace; color: var(--accent); font-weight: bold; min-height: 45px; box-shadow: inset 0 0 10px rgba(88, 166, 255, 0.1); }
+        
         .gate-select { width: 100%; background: var(--card); color: var(--accent); border: 1px solid var(--border); padding: 12px; border-radius: 10px; margin-bottom: 15px; font-weight: bold; outline: none; cursor: pointer; transition: 0.3s; }
+        .gate-select:focus { border-color: var(--accent); }
+        
         .input-group { position: relative; width: 100%; }
-        textarea { width: 100%; height: 150px; background: #010409; color: var(--accent); border: 1px solid var(--border); padding: 15px; border-radius: 12px; font-family: monospace; resize: none; outline: none; transition: 0.3s; }
-        textarea:focus { border-color: var(--accent); }
-        .upload-label { position: absolute; top: 10px; right: 10px; background: #30363d; color: #c9d1d9; border: 1px solid var(--border); padding: 5px 12px; border-radius: 8px; cursor: pointer; font-size: 11px; font-weight: bold; }
-        .controls { display: flex; gap: 10px; margin: 15px 0; }
-        #btn { flex: 2; background: linear-gradient(45deg, #238636, #2ea043); color: white; border: none; padding: 15px; border-radius: 12px; cursor: pointer; font-weight: bold; font-size: 1rem; transition: 0.3s; }
-        #stopBtn { flex: 1; background: #da3633; color: white; border: none; padding: 15px; border-radius: 12px; cursor: pointer; font-weight: bold; display: none; }
-        #btn:hover { opacity: 0.9; transform: scale(1.01); }
+        textarea { width: 100%; height: 160px; background: #010409; color: var(--accent); border: 1px solid var(--border); padding: 15px; border-radius: 12px; font-family: monospace; resize: none; outline: none; transition: 0.3s; }
+        textarea:focus { border-color: var(--accent); box-shadow: 0 0 15px rgba(88, 166, 255, 0.05); }
+        .upload-label { position: absolute; top: 12px; right: 12px; background: #30363d; color: #c9d1d9; border: 1px solid var(--border); padding: 6px 14px; border-radius: 8px; cursor: pointer; font-size: 11px; font-weight: bold; transition: 0.3s; }
+        .upload-label:hover { background: #58a6ff; color: #fff; }
+        
+        .controls { display: flex; gap: 12px; margin: 20px 0; }
+        #btn { flex: 2; background: linear-gradient(45deg, #238636, #2ea043); color: white; border: none; padding: 15px; border-radius: 12px; cursor: pointer; font-weight: bold; font-size: 1rem; transition: 0.3s; box-shadow: 0 10px 20px rgba(35, 134, 54, 0.2); }
+        #stopBtn { flex: 1; background: #da3633; color: white; border: none; padding: 15px; border-radius: 12px; cursor: pointer; font-weight: bold; display: none; transition: 0.3s; }
+        #btn:hover { transform: translateY(-2px); box-shadow: 0 15px 25px rgba(35, 134, 54, 0.3); }
+
         .stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 20px; }
-        .stat-box { background: var(--card); border: 1px solid var(--border); padding: 12px; border-radius: 12px; text-align: center; transition: 0.3s; }
-        .stat-box:hover { border-color: var(--accent); }
+        .stat-box { background: var(--card); border: 1px solid var(--border); padding: 12px; border-radius: 15px; text-align: center; transition: 0.3s; }
+        .stat-box:hover { border-color: var(--accent); background: #1c2128; }
         .stat-box small { font-size: 10px; color: #8b949e; text-transform: uppercase; display: block; margin-bottom: 5px; }
-        .stat-box span { font-size: 20px; font-weight: bold; display: block; }
-        .result-box { background: var(--card); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 10px; overflow: hidden; }
-        .res-head { padding: 12px 15px; font-weight: bold; font-size: 13px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.03); }
-        .res-body { display: none; padding: 10px; font-family: monospace; font-size: 12px; border-top: 1px solid var(--border); background: #0d1117; max-height: 300px; overflow-y: auto; }
+        .stat-box span { font-size: 22px; font-weight: bold; display: block; }
+
+        .result-box { background: var(--card); border: 1px solid var(--border); border-radius: 15px; margin-bottom: 12px; overflow: hidden; box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
+        .res-head { padding: 14px 18px; font-weight: bold; font-size: 13px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.02); transition: 0.3s; }
+        .res-head:hover { background: rgba(255,255,255,0.05); }
+        .res-body { display: none; padding: 10px; font-family: monospace; font-size: 12px; border-top: 1px solid var(--border); background: #0d1117; max-height: 250px; overflow-y: auto; }
+        
         .LIVE { color: #3fb950; } .INSUF { color: #d29922; } .CVV { color: #58a6ff; } .DEAD { color: #f85149; }
-        .taken-time { color: #8b949e; font-size: 11px; margin-left: 10px; }
+        .taken-time { color: #8b949e; font-size: 10px; margin-left: 10px; }
         ::-webkit-scrollbar { width: 5px; }
-        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 10px; }
     </style>
 </head>
 <body>
 <div class="wrapper">
     <div class="header-flex">
-        <h1><i class="fa-solid fa-fire"></i> 𝐇𝐄𝐘𝐎𝐳 𝐂𝐡𝐞𝐜𝐤𝐞𝐫</h1>
+        <h1><i class="fa-solid fa-fire-glow"></i> 𝐇𝐄𝐘𝐎𝐳 𝐂𝐡𝐞𝐜𝐤𝐞𝐫</h1>
         <div class="credit-display"><i class="fa-solid fa-coins"></i> CREDITS: <?php echo number_format(get_keys()[$_SESSION['user_key']]['credits']); ?></div>
     </div>
     
-    <div id="status-display">SYSTEM STATUS: IDLE</div>
+    <div id="status-display"><i class="fa-solid fa-satellite-dish"></i> SYSTEM STATUS: IDLE</div>
 
     <select id="gate" class="gate-select">
         <option value="gate1">⚡ GATE 1: STRIPE $1.00 (Auth)</option>
@@ -213,7 +242,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['login_key'])) {
 
     <div class="input-group">
         <textarea id="list" placeholder="4111222233334444|01|26|123"></textarea>
-        <label for="fileInput" class="upload-label">UPLOAD COMBO</label>
+        <label for="fileInput" class="upload-label"><i class="fa-solid fa-file-import"></i> IMPORT</label>
         <input type="file" id="fileInput" accept=".txt" style="display: none;" onchange="handleFileUpload()">
     </div>
     <div class="controls">
@@ -227,8 +256,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['login_key'])) {
         <div class="stat-box"><small class="CVV">3Ds</small><span id="c_cvv" class="CVV">0</span></div>
         <div class="stat-box"><small class="DEAD">Dead</small><span id="c_dead" class="DEAD">0</span></div>
     </div>
-    <div class="result-box"><div class="res-head" style="color:#3fb950" onclick="toggleBox('l_live', this)"><span><i class="fa-solid fa-check-circle"></i> HIT / CHARGED</span> <i class="fa-solid fa-chevron-down"></i></div><div class="res-body" id="l_live"></div></div>
-    <div class="result-box"><div class="res-head" style="color:#d29922" onclick="toggleBox('l_insuf', this)"><span><i class="fa-solid fa-money-bill-wave"></i> INSUFFICIENT FUNDS</span> <i class="fa-solid fa-chevron-down"></i></div><div class="res-body" id="l_insuf"></div></div>
+    <div class="result-box"><div class="res-head" style="color:#3fb950" onclick="toggleBox('l_live', this)"><span><i class="fa-solid fa-circle-check"></i> HIT / CHARGED</span> <i class="fa-solid fa-chevron-down"></i></div><div class="res-body" id="l_live"></div></div>
+    <div class="result-box"><div class="res-head" style="color:#d29922" onclick="toggleBox('l_insuf', this)"><span><i class="fa-solid fa-sack-dollar"></i> INSUFFICIENT FUNDS</span> <i class="fa-solid fa-chevron-down"></i></div><div class="res-body" id="l_insuf"></div></div>
     <div class="result-box"><div class="res-head" style="color:#58a6ff" onclick="toggleBox('l_cvv', this)"><span><i class="fa-solid fa-shield-halved"></i> 3Ds / CCN LIVE</span> <i class="fa-solid fa-chevron-down"></i></div><div class="res-body" id="l_cvv"></div></div>
     <div class="result-box"><div class="res-head" style="color:#f85149" onclick="toggleBox('l_dead', this)"><span><i class="fa-solid fa-circle-xmark"></i> DECLINED</span> <i class="fa-solid fa-chevron-down"></i></div><div class="res-body" id="l_dead"></div></div>
 </div>
@@ -259,10 +288,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['login_key'])) {
 
     function toggleBox(id, header) {
         const body = document.getElementById(id);
+        const icon = header.querySelector('.fa-chevron-down');
         body.style.display = body.style.display === "block" ? "none" : "block";
     }
 
-    function stop() { isRunning = false; document.getElementById('stopBtn').style.display = 'none'; document.getElementById('btn').disabled = false; }
+    function stop() { 
+        isRunning = false; 
+        document.getElementById('stopBtn').style.display = 'none'; 
+        document.getElementById('btn').disabled = false; 
+        document.getElementById('status-display').innerHTML = '<i class="fa-solid fa-circle-stop"></i> SYSTEM STOPPED.';
+    }
 
     async function start() {
         const textArea = document.getElementById('list');
@@ -277,7 +312,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['login_key'])) {
 
         while (lines.length > 0 && isRunning) {
             let line = lines[0].trim();
-            statusBox.innerText = "Checking: " + line;
+            statusBox.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Checking: ' + line;
             const startTime = performance.now();
 
             try {
@@ -304,7 +339,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['login_key'])) {
                 if(target) {
                     const item = document.createElement('div');
                     item.style.padding = "8px 0"; item.style.borderBottom = "1px solid #21262d";
-                    item.innerHTML = `<span class="${data.status}">[${data.status}]</span> ${line} -> <span class="${data.status}">${data.msg}</span> <span class="taken-time">[${timeTaken}s]</span>`;
+                    item.innerHTML = `<span class="${data.status}">[${data.status}]</span> ${line} <i class="fa-solid fa-angle-right" style="font-size:10px"></i> <span class="${data.status}">${data.msg}</span> <span class="taken-time">[${timeTaken}s]</span>`;
                     target.insertBefore(item, target.firstChild);
                 }
                 
@@ -318,8 +353,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['login_key'])) {
                 await new Promise(r => setTimeout(r, 600)); 
             } catch (e) { isRunning = false; }
         }
-        stop();
-        statusBox.innerText = "SCANNING FINISHED";
+        if (lines.length === 0) {
+            statusBox.innerHTML = '<i class="fa-solid fa-circle-check"></i> SCANNING FINISHED.';
+            document.getElementById('btn').disabled = false;
+            document.getElementById('stopBtn').style.display = 'none';
+        } else { stop(); }
     }
 </script>
 </body>

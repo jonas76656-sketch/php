@@ -40,7 +40,7 @@ if (isset($_GET['logout'])) {
     exit;
 }
 
-// --- Login Logic (Single User Device Lock) ---
+// --- Login Logic (Browser ပြန်ဖွင့်လျှင် Error မပြစေရန် Overwrite လုပ်သည်) ---
 if (isset($_POST['login_key'])) {
     $input_key = trim($_POST['key']);
     $all_keys = get_keys();
@@ -49,12 +49,9 @@ if (isset($_POST['login_key'])) {
             $error = "Key Expired!";
         } elseif ($all_keys[$input_key]['credits'] < 5) {
             $error = "Insufficient Credits (Min 5)!";
-        } 
-        // --- အခြား Device မှာ သုံးနေသလား စစ်ဆေးခြင်း ---
-        elseif (!empty($all_keys[$input_key]['session_id']) && $all_keys[$input_key]['session_id'] !== session_id()) {
-            $error = "Key is already used by another device!";
         } else {
-            // မည်သူမှ မသုံးထားပါက လက်ရှိ Session ID ကို သိမ်းပြီး ဝင်ခွင့်ပေးမည်
+            // လက်ရှိ Session ID ကို အသစ်ထပ်သိမ်းပြီး Lock ကို Overwrite လုပ်သည်
+            // ဤသို့ဖြင့် Browser ပိတ်ပြီးပြန်ဝင်လျှင် "Already used" ဟု မပြတော့ပါ
             $all_keys[$input_key]['session_id'] = session_id();
             save_keys($all_keys);
             $_SESSION['user_key'] = $input_key;
@@ -67,17 +64,16 @@ if (isset($_POST['login_key'])) {
 if (isset($_SESSION['logged_in'])) {
     $ckey = $_SESSION['user_key'];
     $all_keys = get_keys();
-    // Key ပျက်သွားခြင်း၊ သက်တမ်းကုန်ခြင်း၊ Credit မလုံလောက်ခြင်း နှင့် Device မတူတော့ခြင်းတို့ကို စစ်သည်
+    // အသုံးပြုနေရင်း သက်တမ်းကုန်ခြင်း သို့မဟုတ် credit မရှိတော့ခြင်းကို စစ်သည်
+    // session_id စစ်ဆေးမှုကို overwrite လုပ်ထားသဖြင့် ဤနေရာတွင် မလိုအပ်တော့ပါ
     if (!isset($all_keys[$ckey]) || 
         date('Y-m-d') > $all_keys[$ckey]['expiry'] || 
-        $all_keys[$ckey]['credits'] < 5 ||
-        $all_keys[$ckey]['session_id'] !== session_id()) {
+        $all_keys[$ckey]['credits'] < 5) {
         session_destroy();
         header("Location: " . strtok($_SERVER["REQUEST_URI"], '?'));
         exit;
     }
 }
-
 
 // Login Form
 if (!isset($_SESSION['logged_in'])) {
@@ -101,7 +97,7 @@ if (!isset($_SESSION['logged_in'])) {
     <body><div class="login-box">
     <div class="logo-icon"><i class="fa-solid fa-bolt-lightning"></i></div>
     <h2>HEYOz LOGIN</h2>
-    <?php if($error) echo "<div class='err'>$error</div>"; ?>
+    <?php if(isset($error)) echo "<div class='err'>$error</div>"; ?>
     <form method="POST"><input type="text" name="key" placeholder="Enter License Key" required><button type="submit" name="login_key">𝗔𝘂𝘁𝗵𝗼𝗿𝗶𝘇𝗲 𝗔𝗰𝗰𝗲𝘀𝘀</button></form>
     </div></body></html>
     <?php exit;

@@ -265,7 +265,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['login_key'])) {
         </div>
     </div>
     
-    <div id="status-display">SYSTEM ONLINE | READY TO SCAN</div>
+    <div id="status-display">SYSTEM ONLINE | READY TO CHECK</div>
 
     <select id="gate" class="gate-select">
         <option value="gate1">🛡️ GATE 1: STRIPE $1.00 (Charge)</option>
@@ -339,7 +339,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['login_key'])) {
         if (lines.length === 0) return;
         isRunning = true;
         btn.disabled = true;
-        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> SCANNING...';
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> CHECKING...';
         stopBtn.style.display = 'block';
         document.getElementById('c_total').innerText = lines.length;
 

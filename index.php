@@ -376,7 +376,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['login_key'])) {
         isRunning = false;
         btn.disabled = false;
         btn.innerHTML = '<i class="fa-solid fa-play"></i> START CHECKING';
-        document.getElementById('status-display').innerText = "FINISH SCANNING";
+        document.getElementById('status-display').innerText = "FINISH CHECKING";
         document.getElementById('stopBtn').style.display = 'none';
     }
 </script>

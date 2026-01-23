@@ -37,11 +37,11 @@ if (isset($_GET['logout'])) {
     }
     setcookie("active_key", "", time() - 3600, "/"); 
     session_destroy();
-    header("Location: " . strtok($_SERVER["REQUEST_URI"], '?'));
+    header("Location: index.php");
     exit;
 }
 
-// --- Login Logic (Single Device Lock with Cookie Persistence) ---
+// --- Login Logic (Single User Device Lock with Cookie Persistence) ---
 if (isset($_POST['login_key'])) {
     $input_key = trim($_POST['key']);
     $all_keys = get_keys();
@@ -52,9 +52,11 @@ if (isset($_POST['login_key'])) {
         } elseif ($all_keys[$input_key]['credits'] < 5) {
             $error = "Insufficient Credits (Min 5)!";
         } 
+        // Lock စစ်ဆေးခြင်း- တခြား Device မှာ သုံးနေလျှင် တားဆီးမည်
         elseif (!empty($all_keys[$input_key]['session_id']) && $all_keys[$input_key]['session_id'] !== session_id() && $_COOKIE['active_key'] !== $input_key) {
             $error = "Key is already used by another device!";
         } else {
+            // Lock လုပ်ပြီး Browser Cookie ထဲတွင် ၇ ရက်အထိ မှတ်ထားမည်
             $all_keys[$input_key]['session_id'] = session_id();
             save_keys($all_keys);
             setcookie("active_key", $input_key, time() + 604800, "/");
@@ -83,7 +85,7 @@ if (isset($_SESSION['logged_in'])) {
     if (!isset($all_keys[$ckey]) || date('Y-m-d') > $all_keys[$ckey]['expiry'] || $all_keys[$ckey]['credits'] < 5 || $all_keys[$ckey]['session_id'] !== session_id()) {
         session_destroy();
         setcookie("active_key", "", time() - 3600, "/");
-        header("Location: " . strtok($_SERVER["REQUEST_URI"], '?'));
+        header("Location: index.php");
         exit;
     }
 }
@@ -108,7 +110,7 @@ if (!isset($_SESSION['logged_in'])) {
     <body><div class="login-box">
     <div class="logo-icon"><i class="fa-solid fa-bolt-lightning"></i></div>
     <h2>HEYOz LOGIN</h2>
-    <?php if($error) echo "<div class='err'>$error</div>"; ?>
+    <?php if(isset($error)) echo "<div class='err'>$error</div>"; ?>
     <form method="POST"><input type="text" name="key" placeholder="Enter License Key" required><button type="submit" name="login_key">𝗔𝘂𝘁𝗵𝗼𝗿𝗶𝘇ေ 𝗔𝗰𝗰𝗲𝘀𝘀</button></form>
     </div></body></html>
     <?php exit;
@@ -225,8 +227,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['login_key'])) {
         
         .gate-select { width: 100%; background: var(--card); color: var(--accent); border: 1px solid var(--border); padding: 12px; border-radius: 10px; margin-bottom: 15px; font-weight: bold; outline: none; cursor: pointer; transition: 0.3s; }
         
+        .input-group { position: relative; }
         textarea { width: 100%; height: 160px; background: #010409; color: var(--accent); border: 1px solid var(--border); padding: 15px; border-radius: 12px; font-family: monospace; resize: none; outline: none; transition: 0.3s; }
         
+        /* Upload Button Design */
+        .upload-area { text-align: right; margin-top: -38px; margin-right: 15px; position: relative; z-index: 5; }
+        .btn-upload { background: #30363d; color: #c9d1d9; padding: 6px 12px; border-radius: 8px; cursor: pointer; font-size: 11px; font-weight: bold; border: 1px solid var(--border); }
+        .btn-upload:hover { background: #58a6ff; color: #000; }
+
         .controls { display: flex; gap: 12px; margin: 20px 0; }
         #btn { flex: 2; background: linear-gradient(45deg, #238636, #2ea043); color: white; border: none; padding: 15px; border-radius: 12px; cursor: pointer; font-weight: bold; font-size: 1rem; transition: 0.3s; }
         #stopBtn { flex: 1; background: #da3633; color: white; border: none; padding: 15px; border-radius: 12px; cursor: pointer; font-weight: bold; display: none; }
@@ -260,7 +268,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['login_key'])) {
         <option value="gate2">🛡️ GATE 2: STRIPE $0.50 (Charge)</option>
     </select>
 
-    <textarea id="list" placeholder="CC|MM|YY|CVV"></textarea>
+    <div class="input-group">
+        <textarea id="list" placeholder="CC|MM|YY|CVV"></textarea>
+        <div class="upload-area">
+            <label for="fileInput" class="btn-upload">IMPORT .TXT</label>
+            <input type="file" id="fileInput" accept=".txt" style="display: none;" onchange="handleFileUpload()">
+        </div>
+    </div>
 
     <div class="controls">
         <button id="btn" onclick="start()"><i class="fa-solid fa-play"></i> START CHECKING</button>
@@ -284,6 +298,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['login_key'])) {
 <script>
     let counts = { LIVE: 0, INSUF: 0, CVV: 0, DEAD: 0 };
     let isRunning = false;
+
+    // Upload function
+    function handleFileUpload() {
+        const fileInput = document.getElementById('fileInput');
+        const textArea = document.getElementById('list');
+        const file = fileInput.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const lines = e.target.result.split('\n').filter(line => line.trim() !== "");
+                textArea.value = lines.join('\n');
+                document.getElementById('c_total').innerText = lines.length;
+            };
+            reader.readAsText(file);
+        }
+    }
 
     function toggleBox(id, header) {
         const body = document.getElementById(id);
@@ -327,6 +357,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['login_key'])) {
                 if(data.status === "LIVE") { setTimeout(() => { location.reload(); }, 1500); }
                 lines.shift();
                 textArea.value = lines.join('\n');
+                document.getElementById('c_total').innerText = lines.length;
             } catch (e) { isRunning = false; }
         }
         document.getElementById('status-display').innerText = "FINISH SCANNING";

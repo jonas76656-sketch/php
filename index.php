@@ -1,6 +1,6 @@
 <?php
-// --- Session Configuration (Browser ပိတ်လဲ မှတ်မိနေစေရန်) ---
-$session_lifetime = 604800; // ၇ ရက် (စက္ကန့်ဖြင့်)
+// --- 1. Session Configuration (Browser ပိတ်လဲ ၇ ရက်အထိ မှတ်မိနေစေရန်) ---
+$session_lifetime = 604800; // 7 days in seconds
 ini_set('session.gc_maxlifetime', $session_lifetime);
 session_set_cookie_params([
     'lifetime' => $session_lifetime,
@@ -40,7 +40,7 @@ if (isset($_GET['logout'])) {
     exit;
 }
 
-// --- Login Logic ---
+// --- Login Logic (Device Lock အပိုင်းကို Overwrite လုပ်နိုင်အောင် ပြင်ထားသည်) ---
 if (isset($_POST['login_key'])) {
     $input_key = trim($_POST['key']);
     $all_keys = get_keys();
@@ -49,10 +49,8 @@ if (isset($_POST['login_key'])) {
             $error = "Key Expired!";
         } elseif ($all_keys[$input_key]['credits'] < 5) {
             $error = "Insufficient Credits (Min 5)!";
-        } 
-        elseif (!empty($all_keys[$input_key]['session_id']) && $all_keys[$input_key]['session_id'] !== session_id()) {
-            $error = "Key is already used by another device!";
         } else {
+            // လက်ရှိ Session ID ကို အသစ်ထပ်သိမ်းပြီး Lock ကို Overwrite လုပ်သည်
             $all_keys[$input_key]['session_id'] = session_id();
             save_keys($all_keys);
             $_SESSION['user_key'] = $input_key;
@@ -65,10 +63,10 @@ if (isset($_POST['login_key'])) {
 if (isset($_SESSION['logged_in'])) {
     $ckey = $_SESSION['user_key'];
     $all_keys = get_keys();
+    // Session ID စစ်ဆေးမှုကို login logic မှာပဲ overwrite လုပ်ထားလို့ ဒီမှာ သက်တမ်းနဲ့ credit ပဲစစ်ပါမယ်
     if (!isset($all_keys[$ckey]) || 
         date('Y-m-d') > $all_keys[$ckey]['expiry'] || 
-        $all_keys[$ckey]['credits'] < 5 ||
-        $all_keys[$ckey]['session_id'] !== session_id()) {
+        $all_keys[$ckey]['credits'] < 5) {
         session_destroy();
         header("Location: " . strtok($_SERVER["REQUEST_URI"], '?'));
         exit;
@@ -108,8 +106,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['login_key'])) {
     header("Content-Type: application/json");
     $ckey = $_SESSION['user_key'];
     $all_keys = get_keys();
-    if ($all_keys[$ckey]['credits'] < 5 || $all_keys[$ckey]['session_id'] !== session_id()) {
-        echo json_encode(["status" => "LOGOUT", "msg" => "Low Credit or Account Locked!"]); exit;
+    if ($all_keys[$ckey]['credits'] < 5) {
+        echo json_encode(["status" => "LOGOUT", "msg" => "Low Credit!"]); exit;
     }
     $data = json_decode(file_get_contents('php://input'), true);
     $ccx = $data['card'] ?? "";
@@ -195,25 +193,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['login_key'])) {
         body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; padding: 15px; margin: 0; display: flex; justify-content: center; }
         .wrapper { width: 100%; max-width: 900px; animation: fadeIn 0.8s ease; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
         .header-flex { display: flex; justify-content: space-between; align-items: center; background: linear-gradient(90deg, #161b22, #0d1117); padding: 15px 20px; border-radius: 15px; border: 1px solid var(--border); margin-bottom: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
         h1 { font-size: 1.4rem; color: var(--accent); margin: 0; text-transform: uppercase; letter-spacing: 1px; }
         .credit-display { color: var(--accent); font-weight: bold; border: 1px solid rgba(88, 166, 255, 0.3); padding: 8px 18px; border-radius: 12px; font-size: 14px; background: rgba(88, 166, 255, 0.1); }
+        
         #status-display { background: #010409; border: 1px solid var(--accent); padding: 12px; border-radius: 12px; text-align: center; margin-bottom: 15px; font-family: monospace; color: var(--accent); font-weight: bold; min-height: 45px; }
+        
         .gate-select { width: 100%; background: var(--card); color: var(--accent); border: 1px solid var(--border); padding: 12px; border-radius: 10px; margin-bottom: 15px; font-weight: bold; outline: none; cursor: pointer; transition: 0.3s; }
+        
         textarea { width: 100%; height: 160px; background: #010409; color: var(--accent); border: 1px solid var(--border); padding: 15px; border-radius: 12px; font-family: monospace; resize: none; outline: none; transition: 0.3s; }
+        
         .controls { display: flex; gap: 12px; margin: 20px 0; }
         #btn { flex: 2; background: linear-gradient(45deg, #238636, #2ea043); color: white; border: none; padding: 15px; border-radius: 12px; cursor: pointer; font-weight: bold; font-size: 1rem; transition: 0.3s; }
         #stopBtn { flex: 1; background: #da3633; color: white; border: none; padding: 15px; border-radius: 12px; cursor: pointer; font-weight: bold; display: none; }
         #btn:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(35, 134, 54, 0.3); }
+
         .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 12px; margin-bottom: 25px; }
         .stat-box { background: var(--card); border: 1px solid var(--border); padding: 15px; border-radius: 15px; text-align: center; transition: 0.3s; }
         .stat-box:hover { border-color: var(--accent); transform: translateY(-3px); }
         .stat-box small { font-size: 10px; color: #8b949e; text-transform: uppercase; display: block; margin-bottom: 5px; }
         .stat-box span { font-size: 22px; font-weight: bold; display: block; }
+
         .result-box { background: var(--card); border: 1px solid var(--border); border-radius: 15px; margin-bottom: 12px; overflow: hidden; box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
         .res-head { padding: 14px 18px; font-weight: bold; font-size: 13px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: 0.3s; background: rgba(255,255,255,0.02); }
         .res-head:hover { background: rgba(255,255,255,0.05); }
         .res-body { display: none; padding: 10px; font-family: monospace; font-size: 12px; border-top: 1px solid var(--border); background: #0d1117; max-height: 300px; overflow-y: auto; }
+        
         .LIVE { color: #3fb950; } .INSUF { color: #d29922; } .CVV { color: #58a6ff; } .DEAD { color: #f85149; }
         ::-webkit-scrollbar { width: 5px; }
         ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 10px; }
@@ -224,7 +230,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['login_key'])) {
     <div class="header-flex">
         <h1><i class="fa-solid fa-bolt-lightning"></i> HEYOz PREMIUM</h1>
         <div class="credit-display"><i class="fa-solid fa-coins"></i> CREDITS: <?php echo number_format(get_keys()[$_SESSION['user_key']]['credits']); ?></div>
-        <a href="?logout=1" style="color: #f85149; text-decoration: none; font-size: 12px; font-weight: bold; border: 1px solid #f85149; padding: 5px 10px; border-radius: 8px;">LOGOUT</a>
+        <a href="?logout=1" style="color:#f85149; text-decoration:none; font-size:12px; border:1px solid #f85149; padding:5px 10px; border-radius:8px; font-weight:bold;">LOGOUT</a>
     </div>
     
     <div id="status-display">SYSTEM ONLINE | READY TO SCAN</div>
@@ -348,9 +354,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['login_key'])) {
                     target.insertBefore(item, target.firstChild);
                 }
                 
-                // LIVE ကျလျှင် Credit လျော့သွားမည်ဖြစ်၍ Header refresh လုပ်ရန်
                 if(data.status === "LIVE") {
-                   setTimeout(() => { location.reload(); }, 1500);
+                   location.reload(); 
                 }
 
                 lines.shift();

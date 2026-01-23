@@ -52,11 +52,9 @@ if (isset($_POST['login_key'])) {
         } elseif ($all_keys[$input_key]['credits'] < 5) {
             $error = "Insufficient Credits (Min 5)!";
         } 
-        // Lock စစ်ဆေးခြင်း- တခြား Device မှာ သုံးနေလျှင် တားဆီးမည်
         elseif (!empty($all_keys[$input_key]['session_id']) && $all_keys[$input_key]['session_id'] !== session_id() && $_COOKIE['active_key'] !== $input_key) {
             $error = "Key is already used by another device!";
         } else {
-            // Lock လုပ်ပြီး Browser Cookie ထဲတွင် ၇ ရက်အထိ မှတ်ထားမည်
             $all_keys[$input_key]['session_id'] = session_id();
             save_keys($all_keys);
             setcookie("active_key", $input_key, time() + 604800, "/");
@@ -111,7 +109,7 @@ if (!isset($_SESSION['logged_in'])) {
     <div class="logo-icon"><i class="fa-solid fa-bolt-lightning"></i></div>
     <h2>HEYOz LOGIN</h2>
     <?php if(isset($error)) echo "<div class='err'>$error</div>"; ?>
-    <form method="POST"><input type="text" name="key" placeholder="Enter License Key" required><button type="submit" name="login_key">𝗔𝘂𝘁𝗵𝗼ရီဇေ 𝗔𝗰𝗰𝗲𝘀𝘀</button></form>
+    <form method="POST"><input type="text" name="key" placeholder="Enter License Key" required><button type="submit" name="login_key">Authorize Access</button></form>
     </div></body></html>
     <?php exit;
 }
@@ -128,7 +126,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['login_key'])) {
     $ccx = $data['card'] ?? "";
     $gate = $data['gate'] ?? "gate1"; 
     
-    // Formatting CC
     if (preg_match('/(\d{15,16})[\s|:|\\/]+(\d{1,2})[\s|:|\\/]+(\d{2,4})[\s|:|\\/]+(\d{3,4})/', $ccx, $matches)) {
         $cc = $matches[1]; $mes = $matches[2]; $ano = $matches[3]; $cvv = $matches[4];
     } else {
@@ -219,35 +216,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['login_key'])) {
         .wrapper { width: 100%; max-width: 900px; animation: fadeIn 0.8s ease; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         
-        .header-flex { display: flex; justify-content: space-between; align-items: center; background: linear-gradient(90deg, #161b22, #0d1117); padding: 15px 20px; border-radius: 15px; border: 1px solid var(--border); margin-bottom: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
-        h1 { font-size: 1.4rem; color: var(--accent); margin: 0; text-transform: uppercase; letter-spacing: 1px; }
-        .credit-display { color: var(--accent); font-weight: bold; border: 1px solid rgba(88, 166, 255, 0.3); padding: 8px 18px; border-radius: 12px; font-size: 14px; background: rgba(88, 166, 255, 0.1); }
-        
+        /* Header Styling */
+        .header-flex { display: flex; justify-content: space-between; align-items: center; background: #161b22; padding: 12px 20px; border-radius: 12px; border: 1px solid var(--border); margin-bottom: 20px; }
+        h1 { font-size: 1.2rem; color: var(--accent); margin: 0; text-transform: uppercase; letter-spacing: 1px; }
+
+        /* Modernized Credit Box */
+        .credit-container { background: rgba(88, 166, 255, 0.1); border: 1px solid rgba(88, 166, 255, 0.3); padding: 6px 15px; border-radius: 10px; text-align: center; }
+        .credit-title { font-size: 10px; color: #8b949e; text-transform: uppercase; letter-spacing: 1px; display: block; margin-bottom: -2px; }
+        .credit-amount { color: var(--accent); font-weight: 800; font-size: 16px; }
+
+        /* Modern Logout Button */
+        .btn-logout { color: #f85149; text-decoration: none; font-size: 12px; font-weight: bold; border: 1.5px solid rgba(248, 81, 73, 0.5); padding: 8px 16px; border-radius: 8px; transition: 0.3s; text-transform: uppercase; }
+        .btn-logout:hover { background: rgba(248, 81, 73, 0.1); border-color: #f85149; box-shadow: 0 0 10px rgba(248, 81, 73, 0.2); }
+
         #status-display { background: #010409; border: 1px solid var(--accent); padding: 12px; border-radius: 12px; text-align: center; margin-bottom: 15px; font-family: monospace; color: var(--accent); font-weight: bold; min-height: 45px; }
-        
         .gate-select { width: 100%; background: var(--card); color: var(--accent); border: 1px solid var(--border); padding: 12px; border-radius: 10px; margin-bottom: 15px; font-weight: bold; outline: none; cursor: pointer; transition: 0.3s; }
-        
         .input-group { position: relative; }
         textarea { width: 100%; height: 160px; background: #010409; color: var(--accent); border: 1px solid var(--border); padding: 15px; border-radius: 12px; font-family: monospace; resize: none; outline: none; transition: 0.3s; }
-        
-        /* Upload Button Design */
         .upload-area { text-align: right; margin-top: -38px; margin-right: 15px; position: relative; z-index: 5; }
         .btn-upload { background: #30363d; color: #c9d1d9; padding: 6px 12px; border-radius: 8px; cursor: pointer; font-size: 11px; font-weight: bold; border: 1px solid var(--border); }
-        .btn-upload:hover { background: #58a6ff; color: #000; }
-
         .controls { display: flex; gap: 12px; margin: 20px 0; }
         #btn { flex: 2; background: linear-gradient(45deg, #238636, #2ea043); color: white; border: none; padding: 15px; border-radius: 12px; cursor: pointer; font-weight: bold; font-size: 1rem; transition: 0.3s; }
         #stopBtn { flex: 1; background: #da3633; color: white; border: none; padding: 15px; border-radius: 12px; cursor: pointer; font-weight: bold; display: none; }
-
         .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 12px; margin-bottom: 25px; }
         .stat-box { background: var(--card); border: 1px solid var(--border); padding: 15px; border-radius: 15px; text-align: center; transition: 0.3s; }
         .stat-box small { font-size: 10px; color: #8b949e; text-transform: uppercase; display: block; margin-bottom: 5px; }
         .stat-box span { font-size: 22px; font-weight: bold; display: block; }
-
         .result-box { background: var(--card); border: 1px solid var(--border); border-radius: 15px; margin-bottom: 12px; overflow: hidden; box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
         .res-head { padding: 14px 18px; font-weight: bold; font-size: 13px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: 0.3s; background: rgba(255,255,255,0.02); }
         .res-body { display: none; padding: 10px; font-family: monospace; font-size: 12px; border-top: 1px solid var(--border); background: #0d1117; max-height: 300px; overflow-y: auto; }
-        
         .LIVE { color: #3fb950; } .INSUF { color: #d29922; } .CVV { color: #58a6ff; } .DEAD { color: #f85149; }
         ::-webkit-scrollbar { width: 5px; }
         ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 10px; }
@@ -257,8 +254,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['login_key'])) {
 <div class="wrapper">
     <div class="header-flex">
         <h1><i class="fa-solid fa-bolt-lightning"></i> HEYOz PREMIUM</h1>
-        <div class="credit-display"><i class="fa-solid fa-coins"></i> CREDITS: <?php echo number_format(get_keys()[$_SESSION['user_key']]['credits']); ?></div>
-        <a href="?logout=1" style="color:#f85149; text-decoration:none; font-size:12px; border:1px solid #f85149; padding:5px 10px; border-radius:8px; font-weight:bold;">LOGOUT</a>
+        
+        <div style="display: flex; align-items: center; gap: 15px;">
+            <div class="credit-container">
+                <span class="credit-title"><i class="fa-solid fa-coins"></i> Credits</span>
+                <span class="credit-amount"><?php echo number_format(get_keys()[$_SESSION['user_key']]['credits']); ?></span>
+            </div>
+            
+            <a href="?logout=1" class="btn-logout">Logout</a>
+        </div>
     </div>
     
     <div id="status-display">SYSTEM ONLINE | READY TO SCAN</div>
@@ -299,7 +303,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['login_key'])) {
     let counts = { LIVE: 0, INSUF: 0, CVV: 0, DEAD: 0 };
     let isRunning = false;
 
-    // Upload function
     function handleFileUpload() {
         const fileInput = document.getElementById('fileInput');
         const textArea = document.getElementById('list');
@@ -332,13 +335,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['login_key'])) {
         const textArea = document.getElementById('list');
         const btn = document.getElementById('btn');
         const stopBtn = document.getElementById('stopBtn');
-        
         let lines = textArea.value.split('\n').filter(l => l.trim() !== "");
         if (lines.length === 0) return;
-
         isRunning = true;
-        
-        // --- Button State Update ---
         btn.disabled = true;
         btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> SCANNING...';
         stopBtn.style.display = 'block';
@@ -368,22 +367,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['login_key'])) {
                     target.insertBefore(item, target.firstChild);
                 }
 
-                if(data.status === "LIVE") { 
-                    setTimeout(() => { location.reload(); }, 1500); 
-                }
-                
+                if(data.status === "LIVE") { setTimeout(() => { location.reload(); }, 1500); }
                 lines.shift();
                 textArea.value = lines.join('\n');
                 document.getElementById('c_total').innerText = lines.length;
             } catch (e) { isRunning = false; }
         }
-
-        // --- End of Scan ---
         isRunning = false;
         btn.disabled = false;
         btn.innerHTML = '<i class="fa-solid fa-play"></i> START CHECKING';
         document.getElementById('status-display').innerText = "FINISH SCANNING";
-        stopBtn.style.display = 'none';
+        document.getElementById('stopBtn').style.display = 'none';
     }
 </script>
 </body>

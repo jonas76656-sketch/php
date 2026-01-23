@@ -111,7 +111,7 @@ if (!isset($_SESSION['logged_in'])) {
     <div class="logo-icon"><i class="fa-solid fa-bolt-lightning"></i></div>
     <h2>HEYOz LOGIN</h2>
     <?php if(isset($error)) echo "<div class='err'>$error</div>"; ?>
-    <form method="POST"><input type="text" name="key" placeholder="Enter License Key" required><button type="submit" name="login_key">𝗔𝘂𝘁𝗵𝗼𝗿𝗶𝘇ေ 𝗔𝗰𝗰𝗲𝘀𝘀</button></form>
+    <form method="POST"><input type="text" name="key" placeholder="Enter License Key" required><button type="submit" name="login_key">𝗔𝘂𝘁𝗵𝗼ရီဇေ 𝗔𝗰𝗰𝗲𝘀𝘀</button></form>
     </div></body></html>
     <?php exit;
 }
@@ -320,14 +320,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['login_key'])) {
         body.style.display = body.style.display === "block" ? "none" : "block";
     }
 
-    function stop() { isRunning = false; document.getElementById('stopBtn').style.display = 'none'; }
+    function stop() { 
+        isRunning = false; 
+        const btn = document.getElementById('btn');
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-play"></i> START CHECKING';
+        document.getElementById('stopBtn').style.display = 'none'; 
+    }
 
     async function start() {
         const textArea = document.getElementById('list');
+        const btn = document.getElementById('btn');
+        const stopBtn = document.getElementById('stopBtn');
+        
         let lines = textArea.value.split('\n').filter(l => l.trim() !== "");
         if (lines.length === 0) return;
+
         isRunning = true;
-        document.getElementById('stopBtn').style.display = 'block';
+        
+        // --- Button State Update ---
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> SCANNING...';
+        stopBtn.style.display = 'block';
         document.getElementById('c_total').innerText = lines.length;
 
         while (lines.length > 0 && isRunning) {
@@ -354,14 +368,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['login_key'])) {
                     target.insertBefore(item, target.firstChild);
                 }
 
-                if(data.status === "LIVE") { setTimeout(() => { location.reload(); }, 1500); }
+                if(data.status === "LIVE") { 
+                    setTimeout(() => { location.reload(); }, 1500); 
+                }
+                
                 lines.shift();
                 textArea.value = lines.join('\n');
                 document.getElementById('c_total').innerText = lines.length;
             } catch (e) { isRunning = false; }
         }
+
+        // --- End of Scan ---
+        isRunning = false;
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-play"></i> START CHECKING';
         document.getElementById('status-display').innerText = "FINISH SCANNING";
-        document.getElementById('stopBtn').style.display = 'none';
+        stopBtn.style.display = 'none';
     }
 </script>
 </body>

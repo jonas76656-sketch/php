@@ -40,7 +40,7 @@ if (isset($_GET['logout'])) {
     exit;
 }
 
-// --- Login Logic (Device Lock အပိုင်းကို Overwrite လုပ်နိုင်အောင် ပြင်ထားသည်) ---
+// --- Login Logic (Single User Device Lock) ---
 if (isset($_POST['login_key'])) {
     $input_key = trim($_POST['key']);
     $all_keys = get_keys();
@@ -49,8 +49,12 @@ if (isset($_POST['login_key'])) {
             $error = "Key Expired!";
         } elseif ($all_keys[$input_key]['credits'] < 5) {
             $error = "Insufficient Credits (Min 5)!";
+        } 
+        // --- အခြား Device မှာ သုံးနေသလား စစ်ဆေးခြင်း ---
+        elseif (!empty($all_keys[$input_key]['session_id']) && $all_keys[$input_key]['session_id'] !== session_id()) {
+            $error = "Key is already used by another device!";
         } else {
-            // လက်ရှိ Session ID ကို အသစ်ထပ်သိမ်းပြီး Lock ကို Overwrite လုပ်သည်
+            // မည်သူမှ မသုံးထားပါက လက်ရှိ Session ID ကို သိမ်းပြီး ဝင်ခွင့်ပေးမည်
             $all_keys[$input_key]['session_id'] = session_id();
             save_keys($all_keys);
             $_SESSION['user_key'] = $input_key;
@@ -63,15 +67,17 @@ if (isset($_POST['login_key'])) {
 if (isset($_SESSION['logged_in'])) {
     $ckey = $_SESSION['user_key'];
     $all_keys = get_keys();
-    // Session ID စစ်ဆေးမှုကို login logic မှာပဲ overwrite လုပ်ထားလို့ ဒီမှာ သက်တမ်းနဲ့ credit ပဲစစ်ပါမယ်
+    // Key ပျက်သွားခြင်း၊ သက်တမ်းကုန်ခြင်း၊ Credit မလုံလောက်ခြင်း နှင့် Device မတူတော့ခြင်းတို့ကို စစ်သည်
     if (!isset($all_keys[$ckey]) || 
         date('Y-m-d') > $all_keys[$ckey]['expiry'] || 
-        $all_keys[$ckey]['credits'] < 5) {
+        $all_keys[$ckey]['credits'] < 5 ||
+        $all_keys[$ckey]['session_id'] !== session_id()) {
         session_destroy();
         header("Location: " . strtok($_SERVER["REQUEST_URI"], '?'));
         exit;
     }
 }
+
 
 // Login Form
 if (!isset($_SESSION['logged_in'])) {
